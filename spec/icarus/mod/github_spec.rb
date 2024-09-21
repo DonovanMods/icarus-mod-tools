@@ -1,4 +1,5 @@
 require "github"
+require "ostruct"
 
 RSpec.describe Icarus::Mod::Github do
   subject { github }

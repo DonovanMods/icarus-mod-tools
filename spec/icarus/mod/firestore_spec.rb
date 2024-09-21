@@ -1,4 +1,5 @@
 require "firestore"
+require "ostruct"
 
 RSpec.describe Icarus::Mod::Firestore do
   context "when initialized" do
