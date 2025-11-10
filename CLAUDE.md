@@ -9,6 +9,7 @@ Icarus Mod Tools (`imt`) is a Ruby CLI gem that manages a bidirectional sync bet
 ## Development Commands
 
 ### Setup & Installation
+
 ```bash
 bin/setup                    # Install dependencies
 bundle install               # Install gems
@@ -16,26 +17,23 @@ bundle exec rake install     # Install gem locally
 ```
 
 ### Testing
+
 ```bash
-bundle exec rake             # Run tests + StandardRB linting (default task)
+bundle exec rake             # Run tests (default task)
 bundle exec rspec            # Run tests only (with Fuubar formatter)
 bundle exec rspec spec/path/to/file_spec.rb  # Run single test file
 bundle exec rspec spec/path/to/file_spec.rb:42  # Run single test at line 42
 guard                        # Auto-run tests on file changes
 ```
 
-### Linting
-```bash
-bundle exec rake standard    # Run StandardRB linter
-bundle exec standardrb --fix # Auto-fix linting issues
-```
-
 ### Console & Debugging
+
 ```bash
 bin/console                  # Interactive IRB console with project loaded
 ```
 
 ### Running the CLI
+
 ```bash
 bundle exec exe/imt [command]  # Run CLI during development
 imt [command]                  # Run installed gem
@@ -55,18 +53,21 @@ All operations support `--dry-run` for safe testing.
 ### Core Components
 
 **CLI Layer** (`lib/icarus/mod/cli/`)
+
 - `Command`: Main entry point, defines subcommands (sync, list, add, remove, validate)
 - `Base`: Inherited by all commands, provides `--config` and `--version` options
 - `SubcommandBase`: Base for subcommands, adds `--verbose` option
 - Subcommands: `Sync`, `List`, `Add`, `Remove`, `Validate` (all Thor-based)
 
 **Data Models** (`lib/icarus/mod/tools/`)
+
 - `Baseinfo`: Shared validation/transformation logic for mod and tool data
 - `Modinfo`: Validates and processes mod metadata
 - `Toolinfo`: Validates and processes tool metadata
 - `Validator`: Standalone validation utilities
 
 **Sync Operations** (`lib/icarus/mod/tools/sync/`)
+
 - `ModinfoList`: GitHub → meta/modinfo sync
 - `ToolinfoList`: GitHub → meta/toolinfo sync
 - `Mods`: meta/modinfo → mods sync
@@ -74,6 +75,7 @@ All operations support `--dry-run` for safe testing.
 - `Helpers`: HTTP utilities with custom SSL verification for Ruby 3.4+ CRL issues
 
 **External Services** (`lib/icarus/mod/`)
+
 - `Firestore`: Google Cloud Firestore client with collection management
 - `Github`: Octokit wrapper with recursive file discovery
 - `Config`: JSON config reader for `.imtconfig.json`
@@ -85,6 +87,7 @@ The CLI uses a global `$firestore` variable in sync commands to share the Firest
 ### Configuration
 
 The tool reads from `~/.imtconfig.json` (configurable via `--config`):
+
 - Firebase credentials (full JSON object, not path)
 - GitHub OAuth token
 - Collection paths (configurable)
@@ -122,6 +125,7 @@ end
 ### Validation Rules
 
 All mod/tool data inherits from `Baseinfo`:
+
 - Required fields: `name`, `author`, `description`
 - URL validation for `imageURL`, `readmeURL`, file URLs
 - File types must match `/\.(zip|pak|exmodz?)/i`

@@ -23,7 +23,6 @@ RSpec.describe Icarus::Mod::CLI::Remove do
       end
 
       it "removes the repository from the list" do
-        allow(firestore_double).to receive(:repositories).and_return([repo, "other/repo"])
         expect { remove_command.repos(repo) }.to output(/Successfully removed repository/).to_stdout
       end
     end
@@ -60,7 +59,6 @@ RSpec.describe Icarus::Mod::CLI::Remove do
       end
 
       it "strips the URL and removes the repository" do
-        allow(firestore_double).to receive(:repositories).and_return([repo, "other/repo"])
         expect { remove_command.repos(full_url) }.to output(/Successfully removed repository/).to_stdout
       end
     end
@@ -76,7 +74,6 @@ RSpec.describe Icarus::Mod::CLI::Remove do
       end
 
       it "removes the modinfo entry from the list" do
-        allow(firestore_double).to receive(:modinfo).and_return([modinfo_entry, "https://example.com/other.json"])
         expect { remove_command.modinfo(modinfo_entry) }.to output(/Successfully removed modinfo entry/).to_stdout
       end
     end

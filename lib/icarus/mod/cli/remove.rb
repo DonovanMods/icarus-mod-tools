@@ -56,6 +56,28 @@ module Icarus
           end
         end
 
+        desc "toolinfo ITEM", "Removes an entry from 'meta/toolinfo/list'"
+        def toolinfo(item)
+          unless firestore.toolinfo.include?(item)
+            warn "Toolinfo entry not found: #{item}"
+            exit 1
+          end
+
+          puts Paint["Removing toolinfo entry: #{item}", :black] if verbose?
+
+          if options[:dry_run]
+            puts Paint["Dry run; no changes will be made", :yellow]
+            return
+          end
+
+          if firestore.delete(:toolinfo, item)
+            puts Paint["Successfully removed toolinfo entry: #{item}", :green]
+          else
+            warn Paint["Failed to remove toolinfo entry: #{item}", :red]
+            exit 1
+          end
+        end
+
         private
 
         def firestore
