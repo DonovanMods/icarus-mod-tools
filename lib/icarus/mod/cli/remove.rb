@@ -12,7 +12,6 @@ module Icarus
 
         desc "repos REPO", "Removes an entry from 'meta/repos/list'"
         def repos(repo)
-          firestore = Firestore.new
           repo_name = repo.gsub(%r{https?://.*github\.com/}, "")
 
           unless firestore.repositories.include?(repo_name)
@@ -20,7 +19,6 @@ module Icarus
             exit 1
           end
 
-          # payload = firestore.repositories.reject { |r| r == repo_name }
           puts Paint["Removing repository: #{repo_name}", :black] if verbose?
 
           if options[:dry_run]
@@ -31,21 +29,17 @@ module Icarus
           if firestore.delete(:repositories, repo_name)
             puts Paint["Successfully removed repository: #{repo_name}", :green]
           else
-            puts Paint["Failed to remove repository: #{repo_name}", :red]
+            warn Paint["Failed to remove repository: #{repo_name}", :red]
             exit 1
           end
         end
 
         desc "modinfo ITEM", "Removes an entry from 'meta/modinfo/list'"
         def modinfo(item)
-          firestore = Firestore.new
-
           unless firestore.modinfo.include?(item)
             warn "Modinfo entry not found: #{item}"
             exit 1
           end
-
-          # payload = firestore.modinfo.reject { |m| m == item }
 
           puts Paint["Removing modinfo entry: #{item}", :black] if verbose?
 
@@ -57,9 +51,15 @@ module Icarus
           if firestore.delete(:modinfo, item)
             puts Paint["Successfully removed modinfo entry: #{item}", :green]
           else
-            puts Paint["Failed to remove modinfo entry: #{item}", :red]
+            warn Paint["Failed to remove modinfo entry: #{item}", :red]
             exit 1
           end
+        end
+
+        private
+
+        def firestore
+          $firestore ||= Firestore.new
         end
       end
     end

@@ -8,6 +8,11 @@ RSpec.describe Icarus::Mod::CLI::Remove do
 
   before do
     allow(Icarus::Mod::Firestore).to receive(:new).and_return(firestore_double)
+    $firestore = nil  # Reset global state before each test
+  end
+
+  after do
+    $firestore = nil  # Clean up global state after each test
   end
 
   describe "#repos" do
@@ -42,7 +47,7 @@ RSpec.describe Icarus::Mod::CLI::Remove do
       it "prints an error message and exits" do
         expect do
           remove_command.repos(repo)
-        end.to output(/Failed to remove repository/).to_stdout.and raise_error(SystemExit)
+        end.to output(/Failed to remove repository/).to_stderr.and raise_error(SystemExit)
       end
     end
 
@@ -97,7 +102,7 @@ RSpec.describe Icarus::Mod::CLI::Remove do
       it "prints an error message and exits" do
         expect do
           remove_command.modinfo(modinfo_entry)
-        end.to output(/Failed to remove modinfo entry/).to_stdout.and raise_error(SystemExit)
+        end.to output(/Failed to remove modinfo entry/).to_stderr.and raise_error(SystemExit)
       end
     end
   end

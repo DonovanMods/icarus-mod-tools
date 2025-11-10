@@ -68,7 +68,9 @@ module Icarus
           response = @client.doc("#{collections.send(pluralize(type))}/#{payload.id}").delete
         when :modinfo, :toolinfo, :repositories
           update_array = (send(type) - [payload]).flatten.uniq
-          response = @client.doc(collections.meta.send(type)).set({ list: update_array }) if update_array.any?
+          return false if update_array.empty?
+
+          response = @client.doc(collections.meta.send(type)).set({ list: update_array })
         else
           raise "Invalid type: #{type}"
         end
