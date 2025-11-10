@@ -70,6 +70,8 @@ module Icarus
           update_array = (send(type) - [payload]).flatten.uniq
 
           response = @client.doc(collections.meta.send(type)).set({ list: update_array })
+          # Invalidate cache if Firestore update was successful
+          instance_variable_set(:"@#{type}", update_array) if response.is_a?(Google::Cloud::Firestore::CommitResponse::WriteResult)
         else
           raise "Invalid type: #{type}"
         end
