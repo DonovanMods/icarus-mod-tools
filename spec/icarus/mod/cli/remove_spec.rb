@@ -14,9 +14,7 @@ RSpec.describe Icarus::Mod::CLI::Remove do
     context "when the repository exists" do
       before do
         allow(firestore_double).to receive(:repositories).and_return([repo, "other/repo"])
-        allow(firestore_double).to receive(:update).with(:repositories, [repo, "other/repo"].reject { |r|
-          r == repo
-        }, merge: true).and_return(true)
+        allow(firestore_double).to receive(:delete).with(:repositories, repo).and_return(true)
       end
 
       it "removes the repository from the list" do
@@ -37,7 +35,8 @@ RSpec.describe Icarus::Mod::CLI::Remove do
 
     context "when update fails" do
       before do
-        allow(firestore_double).to receive_messages(repositories: [repo, "other/repo"], update: false)
+        allow(firestore_double).to receive(:repositories).and_return([repo, "other/repo"])
+        allow(firestore_double).to receive(:delete).with(:repositories, repo).and_return(false)
       end
 
       it "prints an error message and exits" do
@@ -52,9 +51,7 @@ RSpec.describe Icarus::Mod::CLI::Remove do
 
       before do
         allow(firestore_double).to receive(:repositories).and_return([repo, "other/repo"])
-        allow(firestore_double).to receive(:update).with(:repositories, [repo, "other/repo"].reject { |r|
-          r == repo
-        }, merge: true).and_return(true)
+        allow(firestore_double).to receive(:delete).with(:repositories, repo).and_return(true)
       end
 
       it "strips the URL and removes the repository" do
@@ -70,9 +67,7 @@ RSpec.describe Icarus::Mod::CLI::Remove do
     context "when the modinfo entry exists" do
       before do
         allow(firestore_double).to receive(:modinfo).and_return([modinfo_entry, "https://example.com/other.json"])
-        allow(firestore_double).to receive(:update).with(:modinfo, [modinfo_entry, "https://example.com/other.json"].reject { |m|
-          m == modinfo_entry
-        }, merge: true).and_return(true)
+        allow(firestore_double).to receive(:delete).with(:modinfo, modinfo_entry).and_return(true)
       end
 
       it "removes the modinfo entry from the list" do
@@ -95,8 +90,8 @@ RSpec.describe Icarus::Mod::CLI::Remove do
 
     context "when update fails" do
       before do
-        allow(firestore_double).to receive_messages(modinfo: [modinfo_entry, "https://example.com/other.json"],
-                                                    update: false)
+        allow(firestore_double).to receive(:modinfo).and_return([modinfo_entry, "https://example.com/other.json"])
+        allow(firestore_double).to receive(:delete).with(:modinfo, modinfo_entry).and_return(false)
       end
 
       it "prints an error message and exits" do
