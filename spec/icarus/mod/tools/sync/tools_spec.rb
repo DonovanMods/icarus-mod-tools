@@ -12,10 +12,7 @@ RSpec.describe Icarus::Mod::Tools::Sync::Tools do
   let(:toolinfo) { Icarus::Mod::Tools::Toolinfo.new(toolinfo_data[:tools].first) }
 
   before do
-    allow(firestore_double).to receive(:tools).and_return([])
-    allow(firestore_double).to receive(:find_by_type).and_return(toolinfo)
-    allow(firestore_double).to receive(:update).and_return(true)
-    allow(firestore_double).to receive(:delete).and_return(true)
+    allow(firestore_double).to receive_messages(tools: [], find_by_type: toolinfo, update: true, delete: true)
     allow(Icarus::Mod::Firestore).to receive(:new).and_return(firestore_double)
 
     toolsync.instance_variable_set(:@info_array, [toolinfo])

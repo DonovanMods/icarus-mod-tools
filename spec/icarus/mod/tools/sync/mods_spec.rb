@@ -12,10 +12,7 @@ RSpec.describe Icarus::Mod::Tools::Sync::Mods do
   let(:modinfo) { Icarus::Mod::Tools::Modinfo.new(modinfo_data[:mods].first) }
 
   before do
-    allow(firestore_double).to receive(:mods).and_return([])
-    allow(firestore_double).to receive(:find_by_type).and_return(modinfo)
-    allow(firestore_double).to receive(:update).and_return(true)
-    allow(firestore_double).to receive(:delete).and_return(true)
+    allow(firestore_double).to receive_messages(mods: [], find_by_type: modinfo, update: true, delete: true)
     allow(Icarus::Mod::Firestore).to receive(:new).and_return(firestore_double)
 
     modsync.instance_variable_set(:@info_array, [modinfo])

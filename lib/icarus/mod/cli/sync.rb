@@ -144,7 +144,7 @@ module Icarus
 
             puts "Deleting outdated items..." if verbose?
             delete_array.each do |list|
-              print format("Deleting %-<name>60s", name: "'#{list.author || "NoOne"}/#{list.name || "Unnamed'"}") if verbose > 1
+              print "Deleting '#{list.author || "NoOne"}/#{list.name || "Unnamed'"}'#{" " * 20}" if verbose > 1
               response = sync.delete(list)
               puts success_or_failure(status: response) if verbose > 1
             end

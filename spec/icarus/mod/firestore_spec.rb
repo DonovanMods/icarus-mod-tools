@@ -11,8 +11,7 @@ RSpec.describe Icarus::Mod::Firestore do
     before do
       allow(collection_double).to receive(:get).and_return([])
       allow(document_double).to receive(:get).and_return(Struct.new(:list))
-      allow(client_double).to receive(:doc).and_return(document_double)
-      allow(client_double).to receive(:col).and_return(collection_double)
+      allow(client_double).to receive_messages(doc: document_double, col: collection_double)
       allow(Google::Cloud::Firestore).to receive(:new).and_return(client_double)
       allow(Icarus::Mod::Config).to receive(:firebase).and_return(
         OpenStruct.new(

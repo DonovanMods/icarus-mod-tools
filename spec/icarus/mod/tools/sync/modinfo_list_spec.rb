@@ -16,15 +16,13 @@ RSpec.describe Icarus::Mod::Tools::Sync::ModinfoList do
   let(:modinfo_array) { [modinfo] }
 
   before do
-    allow(firestore_double).to receive(:repositories).and_return([url])
-    allow(firestore_double).to receive(:update).and_return(true)
+    allow(firestore_double).to receive_messages(repositories: [url], update: true)
     allow(Icarus::Mod::Firestore).to receive(:new).and_return(firestore_double)
 
-    allow(github_double).to receive(:find).and_return(modinfo_url)
-    allow(github_double).to receive(:repository=).and_return(true)
+    allow(github_double).to receive_messages(find: modinfo_url, "repository=": true)
     allow(Icarus::Mod::Github).to receive(:new).and_return(github_double)
 
-    # rubocop:disable RSpec/SubjectStub - we're stubbing the helper method which is tested elsewhere
+    # rubocop:disable RSpec/SubjectStub -- we're stubbing the helper method which is tested elsewhere
     allow(modinfo_sync).to receive(:retrieve_from_url).with(url).and_return(modinfo_data)
     # rubocop:enable RSpec/SubjectStub
   end

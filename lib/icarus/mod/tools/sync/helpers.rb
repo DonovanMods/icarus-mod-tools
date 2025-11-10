@@ -19,7 +19,7 @@ module Icarus
             uri = URI(url)
             http = Net::HTTP.new(uri.host, uri.port)
 
-            if uri.scheme == 'https'
+            if uri.scheme == "https"
               http.use_ssl = true
               http.verify_mode = OpenSSL::SSL::VERIFY_PEER
               # Disable CRL checking which is causing the issue
@@ -32,7 +32,7 @@ module Icarus
               }
             end
 
-            res = http.get(uri.path.empty? ? '/' : uri.path)
+            res = http.get(uri.path.empty? ? "/" : uri.path)
 
             raise RequestFailed, "HTTP Request failed for #{url} (#{res.code}): #{res.message}" unless res&.code == "200"
 

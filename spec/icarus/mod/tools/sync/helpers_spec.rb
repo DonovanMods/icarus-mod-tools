@@ -7,6 +7,7 @@ RSpec.describe Icarus::Mod::Tools::Sync::Helpers do
 
   let(:success_response) { instance_double(Net::HTTPSuccess, code: "200", message: "OK", body: modinfo_json) }
   let(:failure_response) { instance_double(Net::HTTPNotFound, code: "404", message: "Not Found") }
+  let(:http_client) { instance_double(Net::HTTP) }
 
   it { is_expected.to respond_to(:retrieve_from_url) }
 
@@ -16,9 +17,16 @@ RSpec.describe Icarus::Mod::Tools::Sync::Helpers do
     let(:modinfo_json) { File.read("spec/fixtures/modinfo.json") }
     let(:modinfo_array) { JSON.parse(modinfo_json, symbolize_names: true) }
 
+    before do
+      allow(Net::HTTP).to receive(:new).with(uri.host, uri.port).and_return(http_client)
+      allow(http_client).to receive(:use_ssl=)
+      allow(http_client).to receive(:verify_mode=)
+      allow(http_client).to receive(:verify_callback=)
+    end
+
     context "when the URL is valid" do
       before do
-        allow(Net::HTTP).to receive(:get_response).with(uri).and_return(success_response)
+        allow(http_client).to receive(:get).with(uri.path).and_return(success_response)
       end
 
       it "returns valid JSON data" do
@@ -28,7 +36,7 @@ RSpec.describe Icarus::Mod::Tools::Sync::Helpers do
 
     context "when the URL is invalid" do
       before do
-        allow(Net::HTTP).to receive(:get_response).with(uri).and_return(failure_response)
+        allow(http_client).to receive(:get).with(uri.path).and_return(failure_response)
       end
 
       it "raises an error" do
