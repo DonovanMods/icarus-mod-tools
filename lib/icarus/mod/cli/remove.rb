@@ -7,6 +7,7 @@ module Icarus
   module Mod
     module CLI
       # Remove CLI command definitions
+      # rubocop:disable Style/GlobalVars
       class Remove < SubcommandBase
         class_option :dry_run, type: :boolean, default: false, desc: "Dry run (no changes will be made)"
 
@@ -76,10 +77,12 @@ module Icarus
             exit 1
           end
         end
+
         def firestore
           $firestore ||= Firestore.new
         end
       end
+      # rubocop:enable Style/GlobalVars
     end
   end
 end
