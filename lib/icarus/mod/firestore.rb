@@ -41,7 +41,7 @@ module Icarus
       end
 
       def find_by_type(type:, name:, author:)
-        instance_variable_get("@#{type}").find { |obj| obj.name == name && obj.author == author }
+        instance_variable_get(:"@#{type}").find { |obj| obj.name == name && obj.author == author }
       end
 
       def update(type, payload, merge: false)

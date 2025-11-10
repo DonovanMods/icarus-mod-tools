@@ -44,6 +44,8 @@ module Icarus
 
             block&.call(entry)
             @resources << entry # cache the file
+          rescue Octokit::NotFound
+            warn "WARNING: Could not access #{repository}: 404 - not found"
           end
         end
 
@@ -52,10 +54,6 @@ module Icarus
 
       def find(pattern)
         all_files { |file| return file if /#{pattern}/i.match?(file[:name]) }
-      end
-
-      def get_contents(url)
-        @client.contents(url)
       end
     end
   end

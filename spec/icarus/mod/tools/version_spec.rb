@@ -1,3 +1,5 @@
+require "icarus/mod/version"
+
 RSpec.describe "Icarus::Mod::VERSION" do
   subject { Icarus::Mod::VERSION }
 
