@@ -58,6 +58,7 @@ Commands:
   imt add             # Adds entries to the databases
   imt help [COMMAND]  # Describe available commands or one specific command
   imt list            # Lists the databases
+  imt remove          # Removes entries from the databases
   imt sync            # Syncs the databases
   imt validate        # Validates various entries
 
@@ -104,6 +105,23 @@ Options:
                                    # Default: [true]
 ```
 
+#### `imt remove`
+
+```sh
+Commands:
+  imt remove help [COMMAND]  # Describe subcommands or one specific subcommand
+  imt remove modinfo ITEM    # Removes an entry from 'meta/modinfo/list'
+  imt remove toolinfo ITEM    # Removes an entry from 'meta/toolinfo/list'
+  imt remove repos REPO      # Removes an entry from 'meta/repos/list'
+
+Options:
+  -C, [--config=CONFIG]            # Path to the config file
+                                   # Default: /Users/dyoung/.imtconfig.json
+  -V, [--version], [--no-version]  # Print the version and exit
+  -v, [--verbose], [--no-verbose]  # Increase verbosity. May be repeated for even more verbosity.
+                                   # Default: [true]
+```
+
 #### `imt sync`
 
 ```sh
@@ -132,4 +150,4 @@ To install this gem onto your local machine, run `bundle exec rake install`. To 
 
 ## Contributing
 
-Bug reports and pull requests are welcome on GitHub at https://github.com/DonovanMods/icarus-mod-tools.
+Bug reports and pull requests are welcome on GitHub at <https://github.com/DonovanMods/icarus-mod-tools>.

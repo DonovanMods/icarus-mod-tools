@@ -48,16 +48,16 @@ module Icarus
         raise "You must specify a payload to update" if payload&.empty? || payload.nil?
 
         response = case type.to_sym
-        when :modinfo, :toolinfo
-          update_array = (send(type) + [payload]).flatten.uniq
-          @client.doc(collections.meta.send(type)).set({list: update_array}, merge:) if update_array.any?
-        when :repositories
-          @client.doc(collections.meta.repositories).set({list: payload}, merge:)
-        when :mod, :tool
-          create_or_update(pluralize(type), payload, merge:)
-        else
-          raise "Invalid type: #{type}"
-        end
+                   when :modinfo, :toolinfo
+                     update_array = (send(type) + [payload]).flatten.uniq
+                     @client.doc(collections.meta.send(type)).set({ list: update_array }, merge:) if update_array.any?
+                   when :repositories
+                     @client.doc(collections.meta.repositories).set({ list: payload }, merge:)
+                   when :mod, :tool
+                     create_or_update(pluralize(type), payload, merge:)
+                   else
+                     raise "Invalid type: #{type}"
+                   end
 
         response.is_a?(Google::Cloud::Firestore::DocumentReference) || response.is_a?(Google::Cloud::Firestore::CommitResponse::WriteResult)
       end
@@ -66,6 +66,12 @@ module Icarus
         case type.to_sym
         when :mod, :tool
           response = @client.doc("#{collections.send(pluralize(type))}/#{payload.id}").delete
+        when :modinfo, :toolinfo, :repositories
+          update_array = (send(type) - [payload]).flatten.uniq
+
+          response = @client.doc(collections.meta.send(type)).set({ list: update_array })
+          # Invalidate cache if Firestore update was successful
+          instance_variable_set(:"@#{type}", update_array) if response.is_a?(Google::Cloud::Firestore::CommitResponse::WriteResult)
         else
           raise "Invalid type: #{type}"
         end
@@ -81,7 +87,7 @@ module Icarus
           @client.doc(collections.meta.send(type)).get[:list]
         when :mods, :tools
           @client.col(collections.send(type)).get.map do |doc|
-            klass = (type == :mods) ? Icarus::Mod::Tools::Modinfo : Icarus::Mod::Tools::Toolinfo
+            klass = type == :mods ? Icarus::Mod::Tools::Modinfo : Icarus::Mod::Tools::Toolinfo
             klass.new(doc.data, id: doc.document_id, created: doc.create_time, updated: doc.update_time)
           end
         else

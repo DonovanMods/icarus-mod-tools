@@ -5,6 +5,7 @@ require "cli/subcommand_base"
 require "cli/sync"
 require "cli/list"
 require "cli/add"
+require "cli/remove"
 require "cli/validate"
 
 module Icarus
@@ -36,6 +37,9 @@ module Icarus
 
         desc "add", "Adds entries to the databases"
         subcommand "add", Add
+
+        desc "remove", "Removes entries from the databases"
+        subcommand "remove", Remove
 
         desc "validate", "Validates various entries"
         subcommand "validate", Validate
