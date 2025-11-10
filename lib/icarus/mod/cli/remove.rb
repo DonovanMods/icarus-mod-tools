@@ -13,73 +13,69 @@ module Icarus
         desc "repos REPO", "Removes an entry from 'meta/repos/list'"
         def repos(repo)
           repo_name = repo.gsub(%r{https?://.*github\.com/}, "")
-
-          unless firestore.repositories.include?(repo_name)
-            warn "Repository not found: #{repo_name}"
-            exit 1
-          end
-
-          puts Paint["Removing repository: #{repo_name}", :black] if verbose?
-
-          if options[:dry_run]
-            puts Paint["Dry run; no changes will be made", :yellow]
-            return
-          end
-
-          if firestore.delete(:repositories, repo_name)
-            puts Paint["Successfully removed repository: #{repo_name}", :green]
-          else
-            warn Paint["Failed to remove repository: #{repo_name}", :red]
-            exit 1
-          end
+          remove_item(
+            :repositories,
+            repo_name,
+            "Repository",
+            "Repository not found: #{repo_name}",
+            "Successfully removed repository: #{repo_name}",
+            "Failed to remove repository: #{repo_name}"
+          )
         end
 
         desc "modinfo ITEM", "Removes an entry from 'meta/modinfo/list'"
         def modinfo(item)
-          unless firestore.modinfo.include?(item)
-            warn "Modinfo entry not found: #{item}"
-            exit 1
-          end
-
-          puts Paint["Removing modinfo entry: #{item}", :black] if verbose?
-
-          if options[:dry_run]
-            puts Paint["Dry run; no changes will be made", :yellow]
-            return
-          end
-
-          if firestore.delete(:modinfo, item)
-            puts Paint["Successfully removed modinfo entry: #{item}", :green]
-          else
-            warn Paint["Failed to remove modinfo entry: #{item}", :red]
-            exit 1
-          end
+          remove_item(
+            :modinfo,
+            item,
+            "Modinfo entry",
+            "Modinfo entry not found: #{item}",
+            "Successfully removed modinfo entry: #{item}",
+            "Failed to remove modinfo entry: #{item}"
+          )
         end
 
         desc "toolinfo ITEM", "Removes an entry from 'meta/toolinfo/list'"
         def toolinfo(item)
-          unless firestore.toolinfo.include?(item)
-            warn "Toolinfo entry not found: #{item}"
+          remove_item(
+            :toolinfo,
+            item,
+            "Toolinfo entry",
+            "Toolinfo entry not found: #{item}",
+            "Successfully removed toolinfo entry: #{item}",
+            "Failed to remove toolinfo entry: #{item}"
+          )
+        end
+
+        private
+
+        def remove_item(type, item, display_name, not_found_msg, success_msg, failure_msg)
+          # Check existence
+          collection = case type
+                       when :repositories then firestore.repositories
+                       when :modinfo     then firestore.modinfo
+                       when :toolinfo    then firestore.toolinfo
+                       else []
+                       end
+          unless collection.include?(item)
+            warn not_found_msg
             exit 1
           end
 
-          puts Paint["Removing toolinfo entry: #{item}", :black] if verbose?
+          puts Paint["Removing #{display_name.downcase}: #{item}", :black] if verbose?
 
           if options[:dry_run]
             puts Paint["Dry run; no changes will be made", :yellow]
             return
           end
 
-          if firestore.delete(:toolinfo, item)
-            puts Paint["Successfully removed toolinfo entry: #{item}", :green]
+          if firestore.delete(type, item)
+            puts Paint[success_msg, :green]
           else
-            warn Paint["Failed to remove toolinfo entry: #{item}", :red]
+            warn Paint[failure_msg, :red]
             exit 1
           end
         end
-
-        private
-
         def firestore
           $firestore ||= Firestore.new
         end
