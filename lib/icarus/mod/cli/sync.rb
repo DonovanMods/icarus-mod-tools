@@ -62,7 +62,7 @@ module Icarus
           end
 
           def sync_info(type)
-            sync = ((type == :modinfo) ? Icarus::Mod::Tools::Sync::ModinfoList : Icarus::Mod::Tools::Sync::ToolinfoList).new(client: firestore)
+            sync = (type == :modinfo ? Icarus::Mod::Tools::Sync::ModinfoList : Icarus::Mod::Tools::Sync::ToolinfoList).new(client: firestore)
 
             puts "Retrieving repository Data..." if verbose?
             repositories = sync.repositories
@@ -75,19 +75,22 @@ module Icarus
             raise Icarus::Mod::Tools::Error, "no .json files found for #{type}" unless info_array&.any?
 
             if options[:dry_run]
-              puts Paint["Dry run; no changes will be made", :orange, :bright]
+              puts Paint["Dry run; no changes will be made", :yellow]
               return
             end
 
             puts Paint["Saving to Firestore...", :black] if verbose?
             response = sync.update(info_array)
-            puts response ? Paint["Success", :green, :bright] : Paint["Failure (may be no changes)", :red, :bright] if verbose?
+            if verbose?
+              puts response ? Paint["Success", :green,
+                                    :bright] : Paint["Failure (may be no changes)", :red, :bright]
+            end
           rescue Icarus::Mod::Tools::Error => e
             warn e.message
           end
 
           def sync_list(type)
-            sync = ((type == :mods) ? Icarus::Mod::Tools::Sync::Mods : Icarus::Mod::Tools::Sync::Tools).new(client: firestore)
+            sync = (type == :mods ? Icarus::Mod::Tools::Sync::Mods : Icarus::Mod::Tools::Sync::Tools).new(client: firestore)
 
             puts "Syncing #{type} to #{Config.firebase.collections.send(type)}" if verbose > 1
 
@@ -106,9 +109,7 @@ module Icarus
               puts "Validating Info Data for #{list.uniq_name}..." if verbose > 2
               unless list.valid?
                 warn Paint["Skipping List #{list.uniq_name} due to validation errors", :yellow, :bright]
-                if verbose > 1
-                  warn list.errors.map { |error| Paint[error, :red] }.join("\n")
-                end
+                warn list.errors.map { |error| Paint[error, :red] }.join("\n") if verbose > 1
 
                 next
               end
@@ -120,7 +121,10 @@ module Icarus
                 verb = "Updating"
               end
 
-              print format("#{verb} %-<name>60s", name: "'#{list.author || "NoOne"}/#{list.name || "Unnamed"}'") if verbose > 1
+              if verbose > 1
+                print format("#{verb} %-<name>60s",
+                             name: "'#{list.author || 'NoOne'}/#{list.name || 'Unnamed'}'")
+              end
 
               if options[:dry_run]
                 puts Paint["Dry run; no changes will be made", :yellow] if verbose > 1
@@ -144,7 +148,7 @@ module Icarus
 
             puts "Deleting outdated items..." if verbose?
             delete_array.each do |list|
-              print "Deleting '#{list.author || "NoOne"}/#{list.name || "Unnamed'"}'#{" " * 20}" if verbose > 1
+              print "Deleting '#{list.author || 'NoOne'}/#{list.name || "Unnamed'"}'#{' ' * 20}" if verbose > 1
               response = sync.delete(list)
               puts success_or_failure(status: response) if verbose > 1
             end

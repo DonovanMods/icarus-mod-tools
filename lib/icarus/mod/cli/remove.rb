@@ -8,6 +8,8 @@ module Icarus
     module CLI
       # Remove CLI command definitions
       class Remove < SubcommandBase
+        class_option :dry_run, type: :boolean, default: false, desc: "Dry run (no changes will be made)"
+
         desc "repos REPO", "Removes an entry from 'meta/repos/list'"
         def repos(repo)
           firestore = Firestore.new
@@ -18,12 +20,18 @@ module Icarus
             exit 1
           end
 
-          payload = firestore.repositories.reject { |r| r == repo_name }
+          # payload = firestore.repositories.reject { |r| r == repo_name }
+          puts Paint["Removing repository: #{repo_name}", :black] if verbose?
 
-          if firestore.update(:repositories, payload, merge: true)
-            puts "Successfully removed repository: #{repo_name}"
+          if options[:dry_run]
+            puts Paint["Dry run; no changes will be made", :yellow]
+            return
+          end
+
+          if firestore.delete(:repositories, repo_name)
+            puts Paint["Successfully removed repository: #{repo_name}", :green]
           else
-            puts "Failed to remove repository: #{repo_name}"
+            puts Paint["Failed to remove repository: #{repo_name}", :red]
             exit 1
           end
         end
@@ -37,12 +45,19 @@ module Icarus
             exit 1
           end
 
-          payload = firestore.modinfo.reject { |m| m == item }
+          # payload = firestore.modinfo.reject { |m| m == item }
 
-          if firestore.update(:modinfo, payload, merge: true)
-            puts "Successfully removed modinfo entry: #{item}"
+          puts Paint["Removing modinfo entry: #{item}", :black] if verbose?
+
+          if options[:dry_run]
+            puts Paint["Dry run; no changes will be made", :yellow]
+            return
+          end
+
+          if firestore.delete(:modinfo, item)
+            puts Paint["Successfully removed modinfo entry: #{item}", :green]
           else
-            puts "Failed to remove modinfo entry: #{item}"
+            puts Paint["Failed to remove modinfo entry: #{item}", :red]
             exit 1
           end
         end
