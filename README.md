@@ -110,6 +110,7 @@ Options:
 ```sh
 Commands:
   imt remove help [COMMAND]  # Describe subcommands or one specific subcommand
+  imt remove modinfo ITEM    # Removes an entry from 'meta/modinfo/list'
   imt remove repos REPO      # Removes an entry from 'meta/repos/list'
 
 Options:

@@ -14,7 +14,9 @@ RSpec.describe Icarus::Mod::CLI::Remove do
     context "when the repository exists" do
       before do
         allow(firestore_double).to receive(:repositories).and_return([repo, "other/repo"])
-        allow(firestore_double).to receive(:update).with(:repositories, [repo, "other/repo"].reject { |r| r == repo }, merge: true).and_return(true)
+        allow(firestore_double).to receive(:update).with(:repositories, [repo, "other/repo"].reject { |r|
+          r == repo
+        }, merge: true).and_return(true)
       end
 
       it "removes the repository from the list" do
@@ -39,7 +41,9 @@ RSpec.describe Icarus::Mod::CLI::Remove do
       end
 
       it "prints an error message and exits" do
-        expect { remove_command.repos(repo) }.to output(/Failed to remove repository/).to_stdout.and raise_error(SystemExit)
+        expect do
+          remove_command.repos(repo)
+        end.to output(/Failed to remove repository/).to_stdout.and raise_error(SystemExit)
       end
     end
 
@@ -48,12 +52,57 @@ RSpec.describe Icarus::Mod::CLI::Remove do
 
       before do
         allow(firestore_double).to receive(:repositories).and_return([repo, "other/repo"])
-        allow(firestore_double).to receive(:update).with(:repositories, [repo, "other/repo"].reject { |r| r == repo }, merge: true).and_return(true)
+        allow(firestore_double).to receive(:update).with(:repositories, [repo, "other/repo"].reject { |r|
+          r == repo
+        }, merge: true).and_return(true)
       end
 
       it "strips the URL and removes the repository" do
         allow(firestore_double).to receive(:repositories).and_return([repo, "other/repo"])
         expect { remove_command.repos(full_url) }.to output(/Successfully removed repository/).to_stdout
+      end
+    end
+  end
+
+  describe "#modinfo" do
+    let(:modinfo_entry) { "https://example.com/modinfo.json" }
+
+    context "when the modinfo entry exists" do
+      before do
+        allow(firestore_double).to receive(:modinfo).and_return([modinfo_entry, "https://example.com/other.json"])
+        allow(firestore_double).to receive(:update).with(:modinfo, [modinfo_entry, "https://example.com/other.json"].reject { |m|
+          m == modinfo_entry
+        }, merge: true).and_return(true)
+      end
+
+      it "removes the modinfo entry from the list" do
+        allow(firestore_double).to receive(:modinfo).and_return([modinfo_entry, "https://example.com/other.json"])
+        expect { remove_command.modinfo(modinfo_entry) }.to output(/Successfully removed modinfo entry/).to_stdout
+      end
+    end
+
+    context "when the modinfo entry does not exist" do
+      before do
+        allow(firestore_double).to receive(:modinfo).and_return(["https://example.com/other.json"])
+      end
+
+      it "prints an error message and exits" do
+        expect do
+          remove_command.modinfo(modinfo_entry)
+        end.to output(/Modinfo entry not found/).to_stderr.and raise_error(SystemExit)
+      end
+    end
+
+    context "when update fails" do
+      before do
+        allow(firestore_double).to receive_messages(modinfo: [modinfo_entry, "https://example.com/other.json"],
+                                                    update: false)
+      end
+
+      it "prints an error message and exits" do
+        expect do
+          remove_command.modinfo(modinfo_entry)
+        end.to output(/Failed to remove modinfo entry/).to_stdout.and raise_error(SystemExit)
       end
     end
   end

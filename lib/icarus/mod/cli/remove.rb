@@ -27,6 +27,25 @@ module Icarus
             exit 1
           end
         end
+
+        desc "modinfo ITEM", "Removes an entry from 'meta/modinfo/list'"
+        def modinfo(item)
+          firestore = Firestore.new
+
+          unless firestore.modinfo.include?(item)
+            warn "Modinfo entry not found: #{item}"
+            exit 1
+          end
+
+          payload = firestore.modinfo.reject { |m| m == item }
+
+          if firestore.update(:modinfo, payload, merge: true)
+            puts "Successfully removed modinfo entry: #{item}"
+          else
+            puts "Failed to remove modinfo entry: #{item}"
+            exit 1
+          end
+        end
       end
     end
   end
