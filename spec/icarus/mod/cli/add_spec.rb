@@ -232,7 +232,7 @@ RSpec.describe Icarus::Mod::CLI::Add do
       end
 
       it "outputs validation error and exits" do
-        expect { add_command.mod }.to output(/Invalid modinfo/).to_stderr.and raise_error(SystemExit)
+        expect { add_command.mod }.to output(/Invalid modinfo/).to_stderr.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
       end
     end
 

@@ -8,6 +8,7 @@ RSpec.describe Icarus::Mod::CLI::Validate do
   let(:options) { { verbose: [true] } }
   let(:validator_double) { instance_double(Icarus::Mod::Tools::Validator) }
   let(:modinfo_data) { JSON.parse(File.read("spec/fixtures/modinfo.json"), symbolize_names: true)[:mods].first }
+  let(:toolinfo_data) { JSON.parse(File.read("spec/fixtures/toolinfo.json"), symbolize_names: true)[:tools].first }
   let(:valid_modinfo) { Icarus::Mod::Tools::Modinfo.new(modinfo_data) }
   let(:invalid_modinfo) do
     Icarus::Mod::Tools::Modinfo.new({
@@ -103,11 +104,7 @@ RSpec.describe Icarus::Mod::CLI::Validate do
   end
 
   describe "#toolinfo" do
-    let(:valid_toolinfo) do
-      Icarus::Mod::Tools::Toolinfo.new(
-        modinfo_data.merge(fileType: "zip", fileURL: "https://example.com/tool.zip")
-      )
-    end
+    let(:valid_toolinfo) { Icarus::Mod::Tools::Toolinfo.new(toolinfo_data) }
 
     it "creates a Validator with :toolinfo type" do
       allow(validator_double).to receive(:array).and_return([valid_toolinfo])

@@ -186,8 +186,9 @@ RSpec.describe Icarus::Mod::Firestore do
 
       before do
         allow(document_double).to receive(:get).and_return(OpenStruct.new(list: existing_modinfo))
-        allow(write_result_double).to receive(:is_a?).with(Google::Cloud::Firestore::DocumentReference).and_return(false)
-        allow(write_result_double).to receive(:is_a?).with(Google::Cloud::Firestore::CommitResponse::WriteResult).and_return(true)
+        allow(write_result_double).to receive(:is_a?) do |klass|
+          klass == Google::Cloud::Firestore::CommitResponse::WriteResult
+        end
       end
 
       it "merges with existing modinfo and updates" do
@@ -345,10 +346,17 @@ RSpec.describe Icarus::Mod::Firestore do
       end
 
       it "invalidates the cache" do
-        # Need to set the cache manually since initialization already ran
-        firestore.instance_variable_set(:@modinfo, modinfo_list.dup)
+        # Populate the cache by calling modinfo
+        firestore.modinfo
+
+        # Update the stub to return the new list after deletion
+        allow(document_double).to receive(:get).and_return(OpenStruct.new(list: ["https://keep.com/modinfo.json"]))
+
+        # Delete an item, which should invalidate the cache
         firestore.delete(:modinfo, "https://delete.com/modinfo.json")
-        expect(firestore.instance_variable_get(:@modinfo)).to eq(["https://keep.com/modinfo.json"])
+
+        # Verify that subsequent calls to modinfo return the updated list
+        expect(firestore.modinfo).to eq(["https://keep.com/modinfo.json"])
       end
     end
 

@@ -8,12 +8,9 @@ RSpec.describe Icarus::Mod::Tools::Validator do
   let(:mods_sync_double) { instance_double(Icarus::Mod::Tools::Sync::Mods) }
   let(:tools_sync_double) { instance_double(Icarus::Mod::Tools::Sync::Tools) }
   let(:modinfo_data) { JSON.parse(File.read("spec/fixtures/modinfo.json"), symbolize_names: true)[:mods].first }
+  let(:toolinfo_data) { JSON.parse(File.read("spec/fixtures/toolinfo.json"), symbolize_names: true)[:tools].first }
   let(:modinfo) { Icarus::Mod::Tools::Modinfo.new(modinfo_data) }
-  let(:toolinfo) do
-    Icarus::Mod::Tools::Toolinfo.new(
-      modinfo_data.merge(fileType: "zip", fileURL: "https://example.com/tool.zip")
-    )
-  end
+  let(:toolinfo) { Icarus::Mod::Tools::Toolinfo.new(toolinfo_data) }
 
   before do
     allow(Icarus::Mod::Tools::Sync::Mods).to receive(:new).and_return(mods_sync_double)

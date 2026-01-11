@@ -8,8 +8,9 @@ RSpec.describe Icarus::Mod::CLI::List do
   let(:options) { { verbose: [true], sort: "name", filter: [] } }
   let(:firestore_double) { instance_double(Icarus::Mod::Firestore) }
   let(:modinfo_data) { JSON.parse(File.read("spec/fixtures/modinfo.json"), symbolize_names: true)[:mods].first }
+  let(:toolinfo_data) { JSON.parse(File.read("spec/fixtures/toolinfo.json"), symbolize_names: true)[:tools].first }
   let(:modinfo) { Icarus::Mod::Tools::Modinfo.new(modinfo_data, id: "test-id", updated: Time.now) }
-  let(:toolinfo) { Icarus::Mod::Tools::Toolinfo.new(modinfo_data.merge(fileType: "zip", fileURL: "https://example.com/file.zip"), id: "test-id", updated: Time.now) }
+  let(:toolinfo) { Icarus::Mod::Tools::Toolinfo.new(toolinfo_data, id: "test-id", updated: Time.now) }
 
   before do
     allow(Icarus::Mod::Firestore).to receive(:new).and_return(firestore_double)
@@ -136,10 +137,7 @@ RSpec.describe Icarus::Mod::CLI::List do
 
       context "sorted by name (default)" do
         it "sorts alphabetically by name" do
-          output = capture_stdout { list_command.mods }
-          alpha_pos = output.index("Alpha Mod")
-          test_pos = output.index("Test Icarus Mod")
-          expect(alpha_pos).to be < test_pos
+          expect { list_command.mods }.to output(/Alpha Mod.*Test Icarus Mod/m).to_stdout
         end
       end
 
@@ -147,10 +145,7 @@ RSpec.describe Icarus::Mod::CLI::List do
         let(:options) { { verbose: [true], sort: "author", filter: [] } }
 
         it "sorts by author" do
-          output = capture_stdout { list_command.mods }
-          test_pos = output.index("Test User")
-          zebra_pos = output.index("Zebra Author")
-          expect(test_pos).to be < zebra_pos
+          expect { list_command.mods }.to output(/Test User.*Zebra Author/m).to_stdout
         end
       end
     end
@@ -194,16 +189,5 @@ RSpec.describe Icarus::Mod::CLI::List do
         expect { list_command.mods }.to output(/Invalid filter option/).to_stdout.and raise_error(SystemExit)
       end
     end
-  end
-
-  private
-
-  def capture_stdout
-    original_stdout = $stdout
-    $stdout = StringIO.new
-    yield
-    $stdout.string
-  ensure
-    $stdout = original_stdout
   end
 end
