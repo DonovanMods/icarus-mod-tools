@@ -10,3 +10,9 @@
 .env
 .firebase-keyfile.json
 .imtconfig.json
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Mise tool configuration
+mise.toml
