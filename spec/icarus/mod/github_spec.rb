@@ -102,6 +102,24 @@ RSpec.describe Icarus::Mod::Github do
         expect(github.all_files { |f| f }).to be_nil
       end
     end
+
+    context "when repository does not exist" do
+      before do
+        allow(github.client).to receive(:contents).and_raise(Octokit::NotFound)
+      end
+
+      it "warns about the missing repository" do
+        expect { github.all_files }.to output(/WARNING: Could not access.*404 - not found/).to_stderr
+      end
+
+      it "returns an empty array" do
+        expect(github.all_files).to eq([])
+      end
+
+      it "does not raise an exception" do
+        expect { github.all_files }.not_to raise_error
+      end
+    end
   end
 
   describe "#find" do
