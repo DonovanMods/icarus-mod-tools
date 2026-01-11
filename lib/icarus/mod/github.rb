@@ -36,14 +36,16 @@ module Icarus
         if use_cache
           @resources.each { |file| block.call(file) } if block
         else
-          @client.contents(repository, path:).each do |entry|
-            if entry[:type] == "dir"
-              all_files(path: entry[:path], cache: false, recursive: true, &block) if recursive
-              next # we don't need directories in our output
-            end
+          begin
+            @client.contents(repository, path:).each do |entry|
+              if entry[:type] == "dir"
+                all_files(path: entry[:path], cache: false, recursive: true, &block) if recursive
+                next # we don't need directories in our output
+              end
 
-            block&.call(entry)
-            @resources << entry # cache the file
+              block&.call(entry)
+              @resources << entry # cache the file
+            end
           rescue Octokit::NotFound
             warn "WARNING: Could not access #{repository}: 404 - not found"
           end
