@@ -172,6 +172,9 @@ module Icarus
         end
 
         def normalize_github_urls_in_data
+          # Skip normalization if data is frozen (e.g., from Firestore)
+          return if @data.frozen?
+
           @data[:imageURL] = normalize_github_url(@data[:imageURL])
           @data[:readmeURL] = normalize_github_url(@data[:readmeURL])
         end
