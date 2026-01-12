@@ -66,6 +66,12 @@ module Icarus
         case type.to_sym
         when :mod, :tool
           response = @client.doc("#{collections.send(pluralize(type))}/#{payload.id}").delete
+          # Invalidate cache to prevent stale data
+          if response.is_a?(Google::Cloud::Firestore::CommitResponse::WriteResult)
+            cache_var = type == :mod ? :@mods : :@tools
+            cached_collection = instance_variable_get(cache_var)
+            cached_collection&.delete_if { |item| item.id == payload.id }
+          end
         when :modinfo, :toolinfo, :repositories
           update_array = (send(type) - [payload]).flatten.uniq
 

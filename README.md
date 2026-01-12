@@ -110,9 +110,11 @@ Options:
 ```sh
 Commands:
   imt remove help [COMMAND]  # Describe subcommands or one specific subcommand
+  imt remove mod MOD_ID      # Removes a mod from the 'mods' collection
   imt remove modinfo ITEM    # Removes an entry from 'meta/modinfo/list'
-  imt remove toolinfo ITEM    # Removes an entry from 'meta/toolinfo/list'
-  imt remove repos REPO      # Removes an entry from 'meta/repos/list'
+  imt remove repos REPO      # Removes an entry from 'meta/repos/list' and cascades to associated mods/tools
+  imt remove tool TOOL_ID    # Removes a tool from the 'tools' collection
+  imt remove toolinfo ITEM   # Removes an entry from 'meta/toolinfo/list'
 
 Options:
   -C, [--config=CONFIG]            # Path to the config file
@@ -120,6 +122,9 @@ Options:
   -V, [--version], [--no-version]  # Print the version and exit
   -v, [--verbose], [--no-verbose]  # Increase verbosity. May be repeated for even more verbosity.
                                    # Default: [true]
+      [--dry-run], [--no-dry-run]  # Dry run (no changes will be made)
+      [--cascade], [--no-cascade]  # Also remove associated modinfo, toolinfo, mods, and tools entries (for repos only)
+                                   # Default: true
 ```
 
 #### `imt sync`
