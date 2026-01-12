@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 ### v2.4.1 - 2026-01-12
 
 - Fix JSON parsing error messages during sync to show concise error instead of full stack trace
+- Include URL in JSON parsing error messages to identify which repository has invalid JSON
 
 ### v2.4.0 - 2026-01-11
 

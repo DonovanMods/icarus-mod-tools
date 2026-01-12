@@ -55,7 +55,7 @@ RSpec.describe Icarus::Mod::Tools::Sync::Tools do
         $stderr = original_stderr
         output = stderr_output.string
 
-        expect(output).to match(/Skipped; Invalid JSON: invalid escape character/)
+        expect(output).to match(/Skipped; Invalid JSON in #{Regexp.escape(invalid_url)}: invalid escape character/)
         expect(output).not_to match(/JSON::Ext::Parser/)
         expect(output).not_to match(/lib\/ruby\/gems/)
       end
