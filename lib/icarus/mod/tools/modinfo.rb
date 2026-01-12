@@ -21,6 +21,19 @@ module Icarus
 
           super
         end
+
+        private
+
+        def normalize_github_urls_in_data
+          super # Handle imageURL and readmeURL
+
+          # Normalize each file URL in the files hash
+          return unless @data[:files].is_a?(Hash)
+
+          @data[:files].transform_values! do |url|
+            normalize_github_url(url)
+          end
+        end
       end
     end
   end

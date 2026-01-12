@@ -21,6 +21,13 @@ module Icarus
 
         private
 
+        def normalize_github_urls_in_data
+          super # Handle imageURL and readmeURL
+
+          # Normalize fileURL
+          @data[:fileURL] = normalize_github_url(@data[:fileURL])
+        end
+
         def filetype_pattern
           /(zip|exe)/i
         end

@@ -75,4 +75,35 @@ RSpec.describe Icarus::Mod::Tools::Toolinfo do
       end
     end
   end
+
+  describe "GitHub URL normalization" do
+    context "when fileURL contains GitHub blob URL" do
+      let(:toolinfo_with_blob) do
+        {
+          name: "Test Tool",
+          author: "Test",
+          description: "Test",
+          version: "1.0",
+          fileType: "zip",
+          fileURL: "https://github.com/user/repo/blob/main/tool.zip",
+          imageURL: "https://github.com/user/repo/raw/main/img.png"
+        }
+      end
+
+      it "normalizes fileURL" do
+        test_toolinfo = described_class.new(toolinfo_with_blob)
+        expect(test_toolinfo.fileURL).to eq("https://raw.githubusercontent.com/user/repo/main/tool.zip")
+      end
+
+      it "normalizes inherited URLs" do
+        test_toolinfo = described_class.new(toolinfo_with_blob)
+        expect(test_toolinfo.imageURL).to eq("https://raw.githubusercontent.com/user/repo/main/img.png")
+      end
+
+      it "adds warnings for normalized URLs" do
+        test_toolinfo = described_class.new(toolinfo_with_blob)
+        expect(test_toolinfo.warnings.length).to eq(2) # fileURL, imageURL
+      end
+    end
+  end
 end

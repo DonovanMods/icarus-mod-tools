@@ -9,6 +9,15 @@ module Icarus
 
         HASHKEYS = %i[name author version compatibility description files imageURL readmeURL].freeze
 
+        # Match github.com URLs with /blob/ or /raw/ and convert to raw.githubusercontent.com
+        GITHUB_BLOB_RAW_URL_PATTERN = %r{
+          (https?)://(?:www\.)?github\.com/  # Protocol and GitHub domain (capture group 1)
+          ([^/]+)/                            # owner (capture group 2)
+          ([^/]+)/                            # repo (capture group 3)
+          (?:blob|raw)/                       # /blob/ or /raw/ to remove
+          (.+)                                # branch and file path (capture group 4)
+        }x
+
         def initialize(data, id: nil, created: nil, updated: nil)
           @id = id
           @created_at = created
@@ -26,6 +35,8 @@ module Icarus
 
         def read(data)
           @data = data.is_a?(String) ? JSON.parse(data, symbolize_names: true) : data
+          normalize_github_urls_in_data
+          @data
         end
 
         def errors
@@ -146,6 +157,23 @@ module Icarus
           else
             @warnings << "Version should be a version string" unless /^\d+[.\d+]*/.match?(version)
           end
+        end
+
+        def normalize_github_url(url)
+          return url if url.nil? || url.empty?
+
+          if url.match?(GITHUB_BLOB_RAW_URL_PATTERN)
+            normalized = url.gsub(GITHUB_BLOB_RAW_URL_PATTERN, '\1://raw.githubusercontent.com/\2/\3/\4')
+            @warnings << "GitHub URL converted to raw.githubusercontent.com format for direct download. Auto-fixed: #{url}"
+            normalized
+          else
+            url
+          end
+        end
+
+        def normalize_github_urls_in_data
+          @data[:imageURL] = normalize_github_url(@data[:imageURL])
+          @data[:readmeURL] = normalize_github_url(@data[:readmeURL])
         end
       end
     end

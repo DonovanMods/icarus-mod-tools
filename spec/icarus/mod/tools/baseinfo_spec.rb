@@ -207,4 +207,107 @@ RSpec.describe Icarus::Mod::Tools::Baseinfo do
       end
     end
   end
+
+  describe "#normalize_github_url" do
+    let(:test_baseinfo) { described_class.new({ name: "Test", author: "Test", description: "Test", version: "1.0" }) }
+
+    context "when URL contains /blob/" do
+      it "converts to raw.githubusercontent.com" do
+        result = test_baseinfo.send(:normalize_github_url, "https://github.com/user/repo/blob/main/file.zip")
+        expect(result).to eq("https://raw.githubusercontent.com/user/repo/main/file.zip")
+      end
+
+      it "adds a warning" do
+        test_baseinfo.send(:normalize_github_url, "https://github.com/user/repo/blob/main/file.zip")
+        expect(test_baseinfo.warnings).to include(a_string_matching(/Auto-fixed/))
+      end
+    end
+
+    context "when URL uses github.com/raw/" do
+      it "converts to raw.githubusercontent.com" do
+        result = test_baseinfo.send(:normalize_github_url, "https://github.com/user/repo/raw/main/file.zip")
+        expect(result).to eq("https://raw.githubusercontent.com/user/repo/main/file.zip")
+      end
+
+      it "adds a warning" do
+        test_baseinfo.send(:normalize_github_url, "https://github.com/user/repo/raw/main/file.zip")
+        expect(test_baseinfo.warnings).to include(a_string_matching(/Auto-fixed/))
+      end
+    end
+
+    context "when URL already uses raw.githubusercontent.com" do
+      it "does not modify the URL" do
+        result = test_baseinfo.send(:normalize_github_url, "https://raw.githubusercontent.com/user/repo/main/file.zip")
+        expect(result).to eq("https://raw.githubusercontent.com/user/repo/main/file.zip")
+      end
+
+      it "does not add a warning" do
+        test_baseinfo.send(:normalize_github_url, "https://raw.githubusercontent.com/user/repo/main/file.zip")
+        expect(test_baseinfo.warnings).to be_empty
+      end
+    end
+
+    context "when URL is not a GitHub URL" do
+      it "does not modify the URL" do
+        result = test_baseinfo.send(:normalize_github_url, "https://example.com/file.zip")
+        expect(result).to eq("https://example.com/file.zip")
+      end
+    end
+
+    context "when URL is nil or empty" do
+      it "returns nil for nil" do
+        expect(test_baseinfo.send(:normalize_github_url, nil)).to be_nil
+      end
+
+      it "returns empty string for empty" do
+        expect(test_baseinfo.send(:normalize_github_url, "")).to eq("")
+      end
+    end
+
+    context "with various GitHub URL formats" do
+      [
+        ["https://github.com/owner/repo/blob/main/file.zip",
+         "https://raw.githubusercontent.com/owner/repo/main/file.zip"],
+        ["https://github.com/owner/repo/raw/main/file.zip",
+         "https://raw.githubusercontent.com/owner/repo/main/file.zip"],
+        ["https://www.github.com/owner/repo/blob/develop/folder/file.pak",
+         "https://raw.githubusercontent.com/owner/repo/develop/folder/file.pak"],
+        ["http://github.com/owner/repo/raw/v1.0.0/file.exmodz",
+         "http://raw.githubusercontent.com/owner/repo/v1.0.0/file.exmodz"],
+        ["https://github.com/owner/repo/blob/abc123def/deep/path/to/file.zip",
+         "https://raw.githubusercontent.com/owner/repo/abc123def/deep/path/to/file.zip"]
+      ].each do |input, expected|
+        it "converts #{input}" do
+          result = test_baseinfo.send(:normalize_github_url, input)
+          expect(result).to eq(expected)
+        end
+      end
+    end
+  end
+
+  describe "#read with GitHub URL normalization" do
+    context "when data contains GitHub blob URLs" do
+      let(:data_with_blob) do
+        {
+          name: "Test",
+          author: "Author",
+          description: "Desc",
+          version: "1.0",
+          imageURL: "https://github.com/user/repo/blob/main/image.png",
+          readmeURL: "https://github.com/user/repo/raw/main/README.md"
+        }
+      end
+
+      it "normalizes URLs during read" do
+        test_instance = described_class.new(data_with_blob)
+        expect(test_instance.imageURL).to eq("https://raw.githubusercontent.com/user/repo/main/image.png")
+        expect(test_instance.readmeURL).to eq("https://raw.githubusercontent.com/user/repo/main/README.md")
+      end
+
+      it "adds warnings for normalized URLs" do
+        test_instance = described_class.new(data_with_blob)
+        expect(test_instance.warnings.length).to eq(2)
+      end
+    end
+  end
 end

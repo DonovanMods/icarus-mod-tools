@@ -73,4 +73,45 @@ RSpec.describe Icarus::Mod::Tools::Modinfo do
       end
     end
   end
+
+  describe "GitHub URL normalization" do
+    context "when files contain GitHub blob URLs" do
+      let(:modinfo_with_blobs) do
+        {
+          name: "Test Mod",
+          author: "Test",
+          description: "Test",
+          version: "1.0",
+          files: {
+            pak: "https://github.com/user/repo/blob/main/mod.pak",
+            zip: "https://github.com/user/repo/raw/main/mod.zip"
+          },
+          imageURL: "https://github.com/user/repo/blob/main/img.png"
+        }
+      end
+
+      it "normalizes all file URLs" do
+        test_modinfo = described_class.new(modinfo_with_blobs)
+        expect(test_modinfo.files[:pak]).to eq("https://raw.githubusercontent.com/user/repo/main/mod.pak")
+        expect(test_modinfo.files[:zip]).to eq("https://raw.githubusercontent.com/user/repo/main/mod.zip")
+      end
+
+      it "normalizes inherited URLs (imageURL, readmeURL)" do
+        test_modinfo = described_class.new(modinfo_with_blobs)
+        expect(test_modinfo.imageURL).to eq("https://raw.githubusercontent.com/user/repo/main/img.png")
+      end
+
+      it "adds warnings for each normalized URL" do
+        test_modinfo = described_class.new(modinfo_with_blobs)
+        expect(test_modinfo.warnings.length).to eq(3) # pak, zip, imageURL
+      end
+    end
+
+    context "when files hash is missing" do
+      it "does not raise an error" do
+        modinfo_without_files = { name: "Test", author: "Test", description: "Test" }
+        expect { described_class.new(modinfo_without_files) }.not_to raise_error
+      end
+    end
+  end
 end
