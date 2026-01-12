@@ -4,6 +4,18 @@ All notable changes to this project will be documented in this file.
 
 ## History (reverse chronological order)
 
+### v2.4.0 - 2026-01-11
+
+- Add `imt remove mod` command to remove entries from `mods` collection
+- Add `imt remove tool` command to remove entries from `tools` collection
+- Add cascade delete to `imt remove repos` (enabled by default via `--cascade` flag)
+  - When removing a repository, also removes associated modinfo, toolinfo, mods, and tools entries
+
+### v2.3.0 - 2025-12-18
+
+- Add comprehensive test coverage
+- Fix sync 404 errors
+
 ### v2.1 - 2023-02-11
 
 - Remove support for `fileType` and `fileURL` in `modinfo.json` files
