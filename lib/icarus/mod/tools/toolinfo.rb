@@ -21,6 +21,16 @@ module Icarus
 
         private
 
+        def normalize_github_urls_in_data
+          super # Handle imageURL and readmeURL
+
+          # Skip normalization if data is frozen (e.g., from Firestore)
+          return if @data.frozen?
+
+          # Normalize fileURL
+          @data[:fileURL] = normalize_github_url(@data[:fileURL])
+        end
+
         def filetype_pattern
           /(zip|exe)/i
         end

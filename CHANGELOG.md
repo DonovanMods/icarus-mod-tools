@@ -4,6 +4,15 @@ All notable changes to this project will be documented in this file.
 
 ## History (reverse chronological order)
 
+### v2.5.0 - 2026-01-12
+
+- Add automatic conversion of GitHub URLs to `raw.githubusercontent.com` format during sync
+  - Converts both `/blob/` and `/raw/` URLs from `github.com` domain
+  - Applies to all file URLs in modinfo and toolinfo files
+  - Also applies to imageURL and readmeURL fields
+  - Warnings added to alert users to update source files
+  - Ensures compatibility with GitHub's current raw file hosting on `raw.githubusercontent.com`
+
 ### v2.4.1 - 2026-01-12
 
 - Fix JSON parsing error messages during sync to show concise error instead of full stack trace

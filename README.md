@@ -147,6 +147,8 @@ Options:
       [--dry-run], [--no-dry-run]  # Dry run (no changes will be made)
 ```
 
+**Note**: Sync operations automatically convert GitHub URLs to the correct `raw.githubusercontent.com` format for direct downloads. If you're using GitHub URLs in `modinfo.json` or `toolinfo.json` files, you can use either `/blob/` or `/raw/` formats and they will be automatically converted. Warnings will be displayed when URLs are auto-fixed so you can update your source files.
+
 ## Development
 
 After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake test` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
