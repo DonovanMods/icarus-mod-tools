@@ -30,6 +30,42 @@ RSpec.describe Icarus::Mod::Tools::Sync::Mods do
     it "returns an array of Modinfo objects" do
       expect(modsync.info_array).to all(be_a(Icarus::Mod::Tools::Modinfo))
     end
+
+    context "when JSON parsing fails" do
+      let(:valid_url) { "https://example.com/valid.json" }
+      let(:invalid_url) { "https://example.com/invalid.json" }
+      let(:valid_response) { { mods: [{ name: "Valid Mod", author: "Author", description: "Test" }] } }
+
+      before do
+        modsync.instance_variable_set(:@info_array, nil)
+        allow(firestore_double).to receive(:modinfo).and_return([valid_url, invalid_url])
+        allow_any_instance_of(Icarus::Mod::Tools::Sync::Helpers).to receive(:retrieve_from_url).with(valid_url).and_return(valid_response)
+        allow_any_instance_of(Icarus::Mod::Tools::Sync::Helpers).to receive(:retrieve_from_url).with(invalid_url).and_raise(
+          JSON::ParserError.new("invalid escape character in string: '\\Users\\foo\\bar' at line 1 column 10")
+        )
+      end
+
+      it "warns with a concise error message without stack trace" do
+        stderr_output = StringIO.new
+        original_stderr = $stderr
+        $stderr = stderr_output
+
+        modsync.info_array
+
+        $stderr = original_stderr
+        output = stderr_output.string
+
+        expect(output).to match(/Skipped; Invalid JSON: invalid escape character/)
+        expect(output).not_to match(/JSON::Ext::Parser/)
+        expect(output).not_to match(/lib\/ruby\/gems/)
+      end
+
+      it "skips the invalid URL and continues processing" do
+        result = modsync.info_array
+        expect(result.length).to eq(1)
+        expect(result.first.name).to eq("Valid Mod")
+      end
+    end
   end
 
   describe "#find" do

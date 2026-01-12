@@ -26,7 +26,7 @@ module Icarus
               warn "Skipped; Failed to retrieve #{url}"
               next
             rescue JSON::ParserError => e
-              warn "Skipped; Invalid JSON: #{e.full_message}"
+              warn "Skipped; Invalid JSON: #{e.message}"
               next
             end.flatten.compact
           end

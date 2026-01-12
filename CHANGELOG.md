@@ -17,6 +17,7 @@ All notable changes to this project will be documented in this file.
   - Track and report both fetch failures and delete failures with detailed summaries
   - Enhanced dry-run output showing all entities that would be deleted
   - Add Firestore cache invalidation for mod/tool deletions
+- Fix JSON parsing error messages during sync to show concise error instead of full stack trace
 
 ### v2.3.0 - 2025-12-18
 

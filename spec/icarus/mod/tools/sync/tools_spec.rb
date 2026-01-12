@@ -30,6 +30,42 @@ RSpec.describe Icarus::Mod::Tools::Sync::Tools do
     it "returns an array of Toolinfo objects" do
       expect(toolsync.info_array).to all(be_a(Icarus::Mod::Tools::Toolinfo))
     end
+
+    context "when JSON parsing fails" do
+      let(:valid_url) { "https://example.com/valid.json" }
+      let(:invalid_url) { "https://example.com/invalid.json" }
+      let(:valid_response) { { tools: [{ name: "Valid Tool", author: "Author", description: "Test", fileType: "EXE", fileURL: "http://example.com/tool.exe" }] } }
+
+      before do
+        toolsync.instance_variable_set(:@info_array, nil)
+        allow(firestore_double).to receive(:toolinfo).and_return([valid_url, invalid_url])
+        allow_any_instance_of(Icarus::Mod::Tools::Sync::Helpers).to receive(:retrieve_from_url).with(valid_url).and_return(valid_response)
+        allow_any_instance_of(Icarus::Mod::Tools::Sync::Helpers).to receive(:retrieve_from_url).with(invalid_url).and_raise(
+          JSON::ParserError.new("invalid escape character in string: '\\Users\\foo\\bar' at line 1 column 10")
+        )
+      end
+
+      it "warns with a concise error message without stack trace" do
+        stderr_output = StringIO.new
+        original_stderr = $stderr
+        $stderr = stderr_output
+
+        toolsync.info_array
+
+        $stderr = original_stderr
+        output = stderr_output.string
+
+        expect(output).to match(/Skipped; Invalid JSON: invalid escape character/)
+        expect(output).not_to match(/JSON::Ext::Parser/)
+        expect(output).not_to match(/lib\/ruby\/gems/)
+      end
+
+      it "skips the invalid URL and continues processing" do
+        result = toolsync.info_array
+        expect(result.length).to eq(1)
+        expect(result.first.name).to eq("Valid Tool")
+      end
+    end
   end
 
   describe "#find" do
