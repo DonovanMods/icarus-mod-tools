@@ -71,6 +71,22 @@ RSpec.describe Icarus::Mod::CLI::Remove do
         expect { cmd_no_cascade.repos(full_url) }.to output(/Successfully removed repository/).to_stdout
       end
     end
+
+    context "when repository is stored as a full URL (with cascade disabled)" do
+      let(:full_url) { "https://github.com/owner/repo" }
+      let(:cmd_no_cascade) { described_class.new([], { cascade: false }, {}) }
+
+      before do
+        allow(Icarus::Mod::Firestore).to receive(:new).and_return(firestore_double)
+        # Repo is stored as full URL, not stripped
+        allow(firestore_double).to receive(:repositories).and_return([full_url, "other/repo"])
+        allow(firestore_double).to receive(:delete).with(:repositories, full_url).and_return(true)
+      end
+
+      it "removes the repository when input matches stored URL" do
+        expect { cmd_no_cascade.repos(full_url) }.to output(/Successfully removed repository/).to_stdout
+      end
+    end
   end
 
   describe "#modinfo" do

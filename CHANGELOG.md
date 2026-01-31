@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## History (reverse chronological order)
 
+### v2.5.1 - 2026-01-31
+
+- Fix `imt remove repo` failing to find repositories stored as full URLs
+  - Now checks for exact match first (handles full URLs), then falls back to stripped format
+
 ### v2.5.0 - 2026-01-12
 
 - Add automatic conversion of GitHub URLs to `raw.githubusercontent.com` format during sync

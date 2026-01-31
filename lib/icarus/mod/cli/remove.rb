@@ -17,7 +17,12 @@ module Icarus
         method_option :cascade, type: :boolean, default: true,
                                 desc: "Also remove associated modinfo, toolinfo, mods, and tools entries"
         def repos(repo)
-          repo_name = repo.gsub(%r{https?://.*github\.com/}, "")
+          # Try exact match first (for full URLs), then stripped format
+          repo_name = if firestore.repositories.include?(repo)
+                        repo
+                      else
+                        repo.gsub(%r{https?://.*github\.com/}, "")
+                      end
 
           # Check if repository exists
           unless firestore.repositories.include?(repo_name)

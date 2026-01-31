@@ -16,3 +16,5 @@ group :develop do
   gem "rubocop", "~> 1.41"
   gem "rubocop-rspec", "~> 2.16", require: false
 end
+
+gem "ostruct", "~> 0.6.3"
