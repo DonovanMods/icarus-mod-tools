@@ -21,14 +21,14 @@ module Icarus
 
           def info_array
             @info_array ||= @firestore.modinfo.map do |url|
-              retrieve_from_url(url)[:mods].map { |mod| Icarus::Mod::Tools::Modinfo.new(mod) if mod[:name].match?(/[a-z0-9]+/i) }
+              retrieve_from_url(url)[:mods].map { |mod| Icarus::Mod::Tools::Modinfo.new(mod) if /[a-z0-9]+/i.match?(mod[:name]) }
             rescue Icarus::Mod::Tools::Sync::RequestFailed
               warn "Skipped; Failed to retrieve #{url}"
               next
             rescue JSON::ParserError => e
               warn "Skipped; Invalid JSON in #{url}: #{e.message}"
               next
-            end.flatten.compact
+            end.flatten.compact.uniq { |mod| [mod.name, mod.author] }
           end
 
           def find(modinfo)

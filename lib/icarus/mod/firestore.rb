@@ -106,7 +106,15 @@ module Icarus
 
         return @client.doc("#{collections.send(type)}/#{doc_id}").set(payload.to_h, merge:) if doc_id
 
-        @client.col(collections.send(type)).add(payload.to_h)
+        doc_ref = @client.col(collections.send(type)).add(payload.to_h)
+
+        # Update cache to prevent duplicate creation within the same sync run
+        payload.id = doc_ref.document_id
+        cache_var = :"@#{type}"
+        cached_collection = instance_variable_get(cache_var)
+        cached_collection&.push(payload)
+
+        doc_ref
       end
 
       def pluralize(type)

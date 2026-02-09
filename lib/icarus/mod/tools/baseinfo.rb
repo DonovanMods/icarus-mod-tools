@@ -5,7 +5,8 @@ module Icarus
     module Tools
       # Base class for Modinfo and Toolinfo
       class Baseinfo
-        attr_reader :data, :id, :created_at, :updated_at
+        attr_reader :data
+        attr_accessor :id, :created_at, :updated_at
 
         HASHKEYS = %i[name author version compatibility description files imageURL readmeURL].freeze
 
@@ -78,6 +79,7 @@ module Icarus
           db_hash = HASHKEYS.each_with_object({}) { |key, hash| hash[key] = @data[key] }
 
           db_hash[:version] = "1.0" if version.nil?
+          db_hash[:files] = db_hash[:files]&.reject { |_, url| url.nil? || url.to_s.strip.empty? }
 
           db_hash
         end

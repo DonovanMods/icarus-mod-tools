@@ -17,3 +17,4 @@
 # Mise tool configuration
 mise.toml
 .claude-context.md
+firebase-debug.log
