@@ -28,7 +28,7 @@ module Icarus
             rescue JSON::ParserError => e
               warn "Skipped; Invalid JSON in #{url}: #{e.message}"
               next
-            end.flatten.compact
+            end.flatten.compact.uniq { |mod| [mod.name, mod.author] }
           end
 
           def find(modinfo)

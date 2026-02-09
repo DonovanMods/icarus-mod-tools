@@ -4,6 +4,13 @@ All notable changes to this project will be documented in this file.
 
 ## History (reverse chronological order)
 
+### v2.5.2 - 2026-02-09
+
+- Fix duplicate entries created during sync operations
+  - Update Firestore cache after creating new documents to prevent duplicate creation within the same sync run
+  - Deduplicate info arrays by name+author before processing (handles duplicate/equivalent modinfo URLs)
+  - Fix  setter on Baseinfo (was silently no-op via method_missing, now uses attr_accessor)
+
 ### v2.5.1 - 2026-01-31
 
 - Fix `imt remove repo` failing to find repositories stored as full URLs

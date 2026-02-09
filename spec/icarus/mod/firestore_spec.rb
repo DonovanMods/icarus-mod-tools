@@ -10,7 +10,7 @@ RSpec.describe Icarus::Mod::Firestore do
   let(:collection_double) { instance_double(Google::Cloud::Firestore::CollectionReference) }
   let(:document_double) { instance_double(Google::Cloud::Firestore::DocumentReference) }
   let(:write_result_double) { instance_double(Google::Cloud::Firestore::CommitResponse::WriteResult) }
-  let(:document_ref_double) { instance_double(Google::Cloud::Firestore::DocumentReference) }
+  let(:document_ref_double) { instance_double(Google::Cloud::Firestore::DocumentReference, document_id: "new-doc-id") }
 
   let(:firebase_config) do
     OpenStruct.new(

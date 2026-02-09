@@ -5,7 +5,8 @@ module Icarus
     module Tools
       # Base class for Modinfo and Toolinfo
       class Baseinfo
-        attr_reader :data, :id, :created_at, :updated_at
+        attr_reader :data
+        attr_accessor :id, :created_at, :updated_at
 
         HASHKEYS = %i[name author version compatibility description files imageURL readmeURL].freeze
 
