@@ -79,6 +79,7 @@ module Icarus
           db_hash = HASHKEYS.each_with_object({}) { |key, hash| hash[key] = @data[key] }
 
           db_hash[:version] = "1.0" if version.nil?
+          db_hash[:files] = db_hash[:files]&.reject { |_, url| url.nil? || url.to_s.strip.empty? }
 
           db_hash
         end
