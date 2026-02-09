@@ -238,6 +238,24 @@ RSpec.describe Icarus::Mod::Firestore do
           firestore.update(:mod, modinfo)
           expect(collection_double).to have_received(:add)
         end
+
+        it "sets payload.id from the new document reference" do
+          firestore.update(:mod, modinfo)
+          expect(modinfo.id).to eq("new-doc-id")
+        end
+
+        it "updates cache so subsequent update for same name+author does not call add again" do
+          firestore.update(:mod, modinfo)
+          expect(collection_double).to have_received(:add).once
+
+          # Second update for same name+author should find it in cache and use set instead
+          second_modinfo = Icarus::Mod::Tools::Modinfo.new(
+            { name: "Test Mod", author: "Test Author", version: "2.0", description: "Updated" }
+          )
+          firestore.update(:mod, second_modinfo)
+          expect(collection_double).to have_received(:add).once
+          expect(document_double).to have_received(:set).at_least(:once)
+        end
       end
 
       context "when mod exists" do
