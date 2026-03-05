@@ -52,9 +52,61 @@ module Icarus
           sync_list(:tools)
         end
 
+        desc "cleanup", "Remove duplicate entries from mods and tools collections"
+        def cleanup
+          cleanup_duplicates(:mods)
+          cleanup_duplicates(:tools)
+        end
+
         no_commands do
           def firestore
             $firestore ||= Firestore.new
+          end
+
+          def cleanup_duplicates(type)
+            singular_type = type.to_s.chomp("s").to_sym
+            collection = firestore.send(type)
+
+            puts "Scanning #{type} for duplicates..." if verbose?
+
+            # Group by [name, author]
+            grouped = collection.group_by { |item| [item.name, item.author] }
+            duplicates = grouped.select { |_, items| items.length > 1 }
+
+            if duplicates.empty?
+              puts "No duplicate #{type} found." if verbose?
+              return
+            end
+
+            puts "Found #{duplicates.length} duplicate #{singular_type}(s) to clean up:" if verbose?
+
+            duplicates.each do |key, items|
+              name, author = key
+              # Sort by updated_at descending, keep the most recent
+              sorted = items.sort_by { |item| item.updated_at || Time.at(0) }.reverse
+              keeper = sorted.first
+              to_delete = sorted[1..]
+
+              puts "  #{author}/#{name}: #{items.length} entries" if verbose?
+              puts "    Keeping: #{keeper.id} (updated: #{keeper.updated_at})" if verbose?
+
+              to_delete.each do |item|
+                if options[:dry_run]
+                  puts Paint["    Would delete: #{item.id} (updated: #{item.updated_at})", :yellow] if verbose?
+                else
+                  puts "    Deleting: #{item.id} (updated: #{item.updated_at})" if verbose?
+                  response = firestore.delete(singular_type, item)
+                  puts "      #{success_or_failure(response)}" if verbose > 1
+                end
+              end
+            end
+
+            deleted_count = duplicates.values.sum { |items| items.length - 1 }
+            if options[:dry_run]
+              puts Paint["Dry run; no changes made. Would have deleted #{deleted_count} duplicate #{type}.", :yellow] if verbose?
+            else
+              puts "Deleted #{deleted_count} duplicate #{type}." if verbose?
+            end
           end
 
           def success_or_failure(status)

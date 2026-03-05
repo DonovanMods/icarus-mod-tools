@@ -233,4 +233,66 @@ RSpec.describe Icarus::Mod::CLI::Sync do
       expect { sync_command.all }.to output(String).to_stdout
     end
   end
+
+  describe "#cleanup" do
+    let(:options) { { verbose: [true], dry_run: false } }
+    let(:mod1) { Icarus::Mod::Tools::Modinfo.new({ name: "DupeMod", author: "Author1", description: "Test" }, id: "mod1", updated: Time.now - 3600) }
+    let(:mod2) { Icarus::Mod::Tools::Modinfo.new({ name: "DupeMod", author: "Author1", description: "Test" }, id: "mod2", updated: Time.now) }
+    let(:mod3) { Icarus::Mod::Tools::Modinfo.new({ name: "UniqueMod", author: "Author2", description: "Test" }, id: "mod3", updated: Time.now) }
+    let(:tool1) { Icarus::Mod::Tools::Toolinfo.new({ name: "DupeTool", author: "Author1", description: "Test" }, id: "tool1", updated: Time.now - 3600) }
+    let(:tool2) { Icarus::Mod::Tools::Toolinfo.new({ name: "DupeTool", author: "Author1", description: "Test" }, id: "tool2", updated: Time.now) }
+
+    before do
+      allow(firestore_double).to receive(:mods).and_return([mod1, mod2, mod3])
+      allow(firestore_double).to receive(:tools).and_return([tool1, tool2])
+      allow(firestore_double).to receive(:delete).and_return(true)
+    end
+
+    it "identifies duplicate mods by name and author" do
+      expect { sync_command.cleanup }.to output(/Found 1 duplicate mod/).to_stdout
+    end
+
+    it "identifies duplicate tools by name and author" do
+      expect { sync_command.cleanup }.to output(/Found 1 duplicate tool/).to_stdout
+    end
+
+    it "keeps the most recently updated entry" do
+      expect { sync_command.cleanup }.to output(/Keeping.*mod2/).to_stdout
+    end
+
+    it "deletes older duplicate entries" do
+      sync_command.cleanup
+      expect(firestore_double).to have_received(:delete).with(:mod, mod1)
+      expect(firestore_double).to have_received(:delete).with(:tool, tool1)
+    end
+
+    it "does not delete unique entries" do
+      sync_command.cleanup
+      expect(firestore_double).not_to have_received(:delete).with(:mod, mod3)
+    end
+
+    context "when no duplicates exist" do
+      before do
+        allow(firestore_double).to receive(:mods).and_return([mod3])
+        allow(firestore_double).to receive(:tools).and_return([])
+      end
+
+      it "reports no duplicates found" do
+        expect { sync_command.cleanup }.to output(/No duplicate mods found/).to_stdout
+      end
+    end
+
+    context "with dry_run enabled" do
+      let(:options) { { verbose: [true], dry_run: true } }
+
+      it "does not delete any entries" do
+        expect { sync_command.cleanup }.to output(/Dry run/).to_stdout
+        expect(firestore_double).not_to have_received(:delete)
+      end
+
+      it "shows what would be deleted" do
+        expect { sync_command.cleanup }.to output(/Would delete.*mod1/).to_stdout
+      end
+    end
+  end
 end
