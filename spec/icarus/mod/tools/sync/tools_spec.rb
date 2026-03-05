@@ -99,6 +99,26 @@ RSpec.describe Icarus::Mod::Tools::Sync::Tools do
     it "returns a Toolinfo object" do
       expect(toolsync.find_info(toolinfo)).to be_a(Icarus::Mod::Tools::Toolinfo)
     end
+
+    context "when tools have the same name but different authors" do
+      let(:tool_author1) { Icarus::Mod::Tools::Toolinfo.new({ name: "SharedName", author: "Author1", description: "Test" }) }
+      let(:tool_author2) { Icarus::Mod::Tools::Toolinfo.new({ name: "SharedName", author: "Author2", description: "Test" }) }
+      let(:search_for_author2) { Icarus::Mod::Tools::Toolinfo.new({ name: "SharedName", author: "Author2", description: "Test" }) }
+
+      before do
+        toolsync.instance_variable_set(:@info_array, [tool_author1, tool_author2])
+      end
+
+      it "matches by both name AND author, not just name" do
+        result = toolsync.find_info(search_for_author2)
+        expect(result.author).to eq("Author2")
+      end
+
+      it "returns nil when author does not match" do
+        nonexistent = Icarus::Mod::Tools::Toolinfo.new({ name: "SharedName", author: "Author3", description: "Test" })
+        expect(toolsync.find_info(nonexistent)).to be_nil
+      end
+    end
   end
 
   describe "#update" do

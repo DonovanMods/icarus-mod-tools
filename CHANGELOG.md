@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## History (reverse chronological order)
 
+### v2.5.3 - 2026-03-04
+
+- Fix `find_info` to match by both name AND author, not just name
+  - Previously, mods/tools with the same name but different authors could cause incorrect deletion logic
+  - Now consistent with `info_array` deduplication and `find_by_type` lookups
+
 ### v2.5.2 - 2026-02-09
 
 - Fix duplicate entries created during sync operations

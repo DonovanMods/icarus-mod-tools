@@ -38,7 +38,7 @@ module Icarus
           end
 
           def find_info(toolinfo)
-            @info_array.find { |tool| tool.name == toolinfo.name }
+            @info_array.find { |tool| tool.name == toolinfo.name && tool.author == toolinfo.author }
           end
 
           def update(toolinfo)

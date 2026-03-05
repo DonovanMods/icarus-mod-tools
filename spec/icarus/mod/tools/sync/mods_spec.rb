@@ -95,9 +95,29 @@ RSpec.describe Icarus::Mod::Tools::Sync::Mods do
     end
   end
 
-  describe "#find_modinfo" do
+  describe "#find_info" do
     it "returns a Modinfo object" do
       expect(modsync.find_info(modinfo)).to be_a(Icarus::Mod::Tools::Modinfo)
+    end
+
+    context "when mods have the same name but different authors" do
+      let(:mod_author1) { Icarus::Mod::Tools::Modinfo.new({ name: "SharedName", author: "Author1", description: "Test" }) }
+      let(:mod_author2) { Icarus::Mod::Tools::Modinfo.new({ name: "SharedName", author: "Author2", description: "Test" }) }
+      let(:search_for_author2) { Icarus::Mod::Tools::Modinfo.new({ name: "SharedName", author: "Author2", description: "Test" }) }
+
+      before do
+        modsync.instance_variable_set(:@info_array, [mod_author1, mod_author2])
+      end
+
+      it "matches by both name AND author, not just name" do
+        result = modsync.find_info(search_for_author2)
+        expect(result.author).to eq("Author2")
+      end
+
+      it "returns nil when author does not match" do
+        nonexistent = Icarus::Mod::Tools::Modinfo.new({ name: "SharedName", author: "Author3", description: "Test" })
+        expect(modsync.find_info(nonexistent)).to be_nil
+      end
     end
   end
 

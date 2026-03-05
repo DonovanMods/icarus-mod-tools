@@ -36,7 +36,7 @@ module Icarus
           end
 
           def find_info(modinfo)
-            @info_array.find { |mod| mod.name == modinfo.name }
+            @info_array.find { |mod| mod.name == modinfo.name && mod.author == modinfo.author }
           end
 
           def update(modinfo)
