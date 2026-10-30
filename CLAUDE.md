@@ -45,12 +45,12 @@ imt [command]                  # Run installed gem
 
 The tool implements a two-stage sync pipeline:
 
-1. **GitHub → Meta Collections**: Scan repositories for metadata files and sync to `meta/modinfo`, `meta/toolinfo`, `meta/repos`
+1. **GitHub → Meta Collections**: Scan repositories for metadata files and sync to `meta/modinfo`, `meta/toolinfo`, `meta/repos` (`meta/mod_sources` and `meta/tool_sources` are internal, written by stage 2)
 2. **Meta → Entity Collections**: Process meta lists to populate/update `mods` and `tools` collections
 
 All operations support `--dry-run` for safe testing.
 
-Deletion contract (#16): stage 2 deletes a doc only when no info file still lists it. `Sync::Helpers#retrieve_from_url` raises `RequestGone` for 404/410 (author removed the file: delete) and `RequestTransient` for everything else; invalid JSON also counts as transient. Docs do not record their source URL, so any transient failure skips the whole delete phase for that run. Stage 1 never drops list entries (`Firestore#update` unions), and a repo whose GitHub search fails transiently is skipped. New docs get a stable ID (`Firestore#stable_id`); `imt sync cleanup` keeps the oldest duplicate and copies the newest data onto it.
+Deletion contract (#16): stage 2 deletes a doc only when no info file still lists it. `Sync::Helpers#retrieve_from_url` raises `RequestGone` for 404/410 (author removed the file: delete) and `RequestTransient` for everything else; invalid JSON also counts as transient. Docs do not record their source URL; instead `meta/mod_sources` / `meta/tool_sources` (Firestore, shared across sync hosts) map doc ID => source URL, written by `Sync::Mods/Tools#update` + `save_sources` and pruned by `Firestore#delete`. A transient failure protects only the docs mapped to that URL; unmapped docs are kept while any URL failed. Stage 1 never drops list entries (`Firestore#update` unions), and a repo whose GitHub search fails transiently is skipped. New docs get a stable ID (`Firestore#stable_id`); `imt sync cleanup` keeps the oldest duplicate and copies the newest data onto it.
 
 ### Core Components
 

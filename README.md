@@ -148,7 +148,7 @@ Options:
       [--dry-run], [--no-dry-run]  # Dry run (no changes will be made)
 ```
 
-**Removal**: Mod and tool authors control their own entries. If a `modinfo.json` or `toolinfo.json` is removed or renamed (so it returns HTTP 404 or 410), `imt sync mods`/`tools` deletes its entries. If a file cannot be read for any other reason (timeout, network error, server error, rate limit, or invalid JSON), nothing is deleted on that run and a warning names the failing URL.
+**Removal**: Mod and tool authors control their own entries. If a `modinfo.json` or `toolinfo.json` is removed or renamed (so it returns HTTP 404 or 410), `imt sync mods`/`tools` deletes its entries. If a file cannot be read for any other reason (timeout, network error, server error, rate limit, or invalid JSON), that file's entries are kept on that run and a warning names them; other sources are unaffected. Sync tracks which file each entry came from in the internal `meta/mod_sources` and `meta/tool_sources` documents (override with `collections.meta.mod_sources` / `tool_sources` in the config). An entry with no recorded source yet is kept while any source fails.
 
 **IDs**: New mods and tools get a document ID derived from their type, author and name, so an entry that is deleted and later re-added gets the same ID. `imt sync cleanup` keeps the oldest of any duplicates (the ID clients already have), copies the newest duplicate's data onto it, and deletes the rest.
 
