@@ -37,6 +37,8 @@ RSpec.describe Icarus::Mod::CLI::Sync do
       find: nil,
       find_info: nil,
       transient_failures: [],
+      sources: {},
+      save_sources: true,
       update: true,
       delete: true
     )
@@ -46,6 +48,8 @@ RSpec.describe Icarus::Mod::CLI::Sync do
       find: nil,
       find_info: nil,
       transient_failures: [],
+      sources: {},
+      save_sources: true,
       update: true,
       delete: true
     )
@@ -240,25 +244,68 @@ RSpec.describe Icarus::Mod::CLI::Sync do
         expect(mods_sync_double).to have_received(:delete).with(stale_mod)
       end
 
+      it "saves the source map after the updates" do
+        expect { sync_command.mods }.to output.to_stdout
+        expect(mods_sync_double).to have_received(:update).ordered
+        expect(mods_sync_double).to have_received(:save_sources).ordered
+      end
+
+      context "with --dry-run" do
+        let(:options) { { verbose: [true], dry_run: true, check: false } }
+
+        it "writes neither docs nor the source map" do
+          expect { sync_command.mods }.to output.to_stdout
+          expect(mods_sync_double).not_to have_received(:update)
+          expect(mods_sync_double).not_to have_received(:delete)
+          expect(mods_sync_double).not_to have_received(:save_sources)
+        end
+      end
+
       context "when a modinfo URL failed transiently this run" do
-        let(:flaky_url) { "https://raw.githubusercontent.com/someone/mods/main/modinfo.json" }
+        let(:u1) { "https://raw.githubusercontent.com/one/mods/main/modinfo.json" }
+        let(:u2) { "https://raw.githubusercontent.com/two/mods/main/modinfo.json" }
+        let(:u1_mod) { Icarus::Mod::Tools::Modinfo.new({ name: "FromU1", author: "One", description: "x" }, id: "u1-mod") }
+        let(:u2_mod) { Icarus::Mod::Tools::Modinfo.new({ name: "RemovedFromU2", author: "Two", description: "x" }, id: "u2-mod") }
 
         before do
-          allow(mods_sync_double).to receive(:transient_failures).and_return([flaky_url])
+          allow(mods_sync_double).to receive_messages(
+            mods: [u1_mod, u2_mod, stale_mod],
+            transient_failures: [u1],
+            sources: { "u1-mod" => u1, "u2-mod" => u2 }
+          )
         end
 
-        it "deletes nothing, because its docs cannot be told apart from the rest" do
+        it "keeps only the docs of the failed source and deletes another author's removed mod" do
           expect { sync_command.mods }.to output.to_stdout.and output.to_stderr
-          expect(mods_sync_double).not_to have_received(:delete)
+          expect(mods_sync_double).not_to have_received(:delete).with(u1_mod)
+          expect(mods_sync_double).to have_received(:delete).with(u2_mod)
         end
 
-        it "warns which URL failed and that the outdated items were kept" do
-          expect { sync_command.mods }.to output(/#{Regexp.escape(flaky_url)}.*kept/m).to_stderr.and output.to_stdout
+        it "keeps a doc with no recorded source while any source failed (first run after the upgrade)" do
+          expect { sync_command.mods }.to output.to_stdout.and output.to_stderr
+          expect(mods_sync_double).not_to have_received(:delete).with(stale_mod)
+        end
+
+        it "warns which docs were kept and why" do
+          expect { sync_command.mods }.to output(
+            /#{Regexp.escape(u1)}.*One\/FromU1.*source could not be read.*Someone\/Stale.*no recorded source/m
+          ).to_stderr.and output.to_stdout
         end
 
         it "still creates and updates the mods it could read" do
           expect { sync_command.mods }.to output.to_stdout.and output.to_stderr
           expect(mods_sync_double).to have_received(:update).with(modinfo)
+        end
+      end
+
+      context "when every source was read" do
+        before do
+          allow(mods_sync_double).to receive(:sources).and_return({})
+        end
+
+        it "deletes a doc with no recorded source as before" do
+          expect { sync_command.mods }.to output(/Deleted 1 outdated items/).to_stdout
+          expect(mods_sync_double).to have_received(:delete).with(stale_mod)
         end
       end
     end
@@ -272,9 +319,16 @@ RSpec.describe Icarus::Mod::CLI::Sync do
         allow(tools_sync_double).to receive_messages(tools: [stale_tool], transient_failures: ["https://example.com/toolinfo.json"])
       end
 
-      it "deletes nothing" do
+      it "keeps a tool from the failed source" do
+        allow(tools_sync_double).to receive(:sources).and_return("stale-tool" => "https://example.com/toolinfo.json")
         expect { sync_command.tools }.to output.to_stdout.and output.to_stderr
         expect(tools_sync_double).not_to have_received(:delete)
+      end
+
+      it "deletes a tool whose recorded source was read" do
+        allow(tools_sync_double).to receive(:sources).and_return("stale-tool" => "https://example.com/other/toolinfo.json")
+        expect { sync_command.tools }.to output.to_stdout
+        expect(tools_sync_double).to have_received(:delete).with(stale_tool)
       end
     end
 
@@ -325,7 +379,8 @@ RSpec.describe Icarus::Mod::CLI::Sync do
     end
 
     before do
-      allow(firestore_double).to receive_messages(mods: [mod1, mod2, mod3], tools: [tool1, tool2], delete: true, replace_data: true)
+      allow(firestore_double).to receive_messages(mods: [mod1, mod2, mod3], tools: [tool1, tool2], delete: true, replace_data: true,
+                                                  move_source: true)
     end
 
     it "identifies duplicate mods by name and author" do
@@ -344,6 +399,12 @@ RSpec.describe Icarus::Mod::CLI::Sync do
       expect { sync_command.cleanup }.to output(String).to_stdout
       expect(firestore_double).to have_received(:replace_data).with(:mod, id: "mod1", data: mod2.data)
       expect(firestore_double).to have_received(:replace_data).with(:tool, id: "tool1", data: tool2.data)
+    end
+
+    it "gives the keeper the source of the entry whose data it took, before deleting (delete drops the rest)" do
+      expect { sync_command.cleanup }.to output(String).to_stdout
+      expect(firestore_double).to have_received(:move_source).with(:mod, from: "mod2", to: "mod1").ordered
+      expect(firestore_double).to have_received(:delete).with(:mod, mod2).ordered
     end
 
     it "copies before deleting" do
@@ -423,6 +484,7 @@ RSpec.describe Icarus::Mod::CLI::Sync do
         expect { sync_command.cleanup }.to output(/Dry run/).to_stdout
         expect(firestore_double).not_to have_received(:delete)
         expect(firestore_double).not_to have_received(:replace_data)
+        expect(firestore_double).not_to have_received(:move_source)
       end
 
       it "shows what would be kept, copied and deleted" do

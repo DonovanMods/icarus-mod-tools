@@ -108,6 +108,12 @@ RSpec.describe Icarus::Mod::Tools::Sync::Tools do
         stub_fetch(broken_json_url).and_raise(JSON::ParserError, "unexpected token")
       end
 
+      it "remembers which URL each tool came from" do
+        result = nil
+        expect { result = toolsync.info_array }.to output.to_stderr
+        expect(result.map(&:source_url)).to eq([ok_url])
+      end
+
       it "still returns the tools it could read" do
         result = nil
         expect { result = toolsync.info_array }.to output.to_stderr
@@ -179,6 +185,36 @@ RSpec.describe Icarus::Mod::Tools::Sync::Tools do
         nonexistent = Icarus::Mod::Tools::Toolinfo.new({ name: "SharedName", author: "Author3", description: "Test" })
         expect(toolsync.find_info(nonexistent)).to be_nil
       end
+    end
+  end
+
+  describe "source tracking" do
+    before do
+      allow(firestore_double).to receive_messages(sources: { "id" => "url" }, save_sources: true, record_source: nil)
+    end
+
+    it "#sources reads the tools map" do
+      expect(toolsync.sources).to eq("id" => "url")
+      expect(firestore_double).to have_received(:sources).with(:tools)
+    end
+
+    it "#save_sources saves the tools map" do
+      toolsync.save_sources
+      expect(firestore_double).to have_received(:save_sources).with(:tools)
+    end
+
+    it "#update records the source URL after a successful write" do
+      toolinfo.source_url = "https://example.com/toolinfo.json"
+      toolinfo.id = "doc-id"
+      toolsync.update(toolinfo)
+      expect(firestore_double).to have_received(:record_source).with(:tools, "doc-id", "https://example.com/toolinfo.json")
+    end
+
+    it "#update records nothing when the write fails" do
+      allow(firestore_double).to receive(:update).and_return(false)
+      toolinfo.source_url = "https://example.com/toolinfo.json"
+      toolsync.update(toolinfo)
+      expect(firestore_double).not_to have_received(:record_source)
     end
   end
 

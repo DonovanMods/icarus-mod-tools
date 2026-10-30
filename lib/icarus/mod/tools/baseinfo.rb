@@ -7,6 +7,8 @@ module Icarus
       class Baseinfo
         attr_reader :data
         attr_accessor :id, :created_at, :updated_at
+        # The modinfo/toolinfo URL this entry was read from during sync; never written to the entry's doc
+        attr_accessor :source_url
 
         HASHKEYS = %i[name author version compatibility description files imageURL readmeURL].freeze
 

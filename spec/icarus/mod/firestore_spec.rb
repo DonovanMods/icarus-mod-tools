@@ -400,6 +400,94 @@ RSpec.describe Icarus::Mod::Firestore do
     end
   end
 
+  describe "source tracking (meta/mod_sources, meta/tool_sources)" do
+    let(:sources_doc) { instance_double(Google::Cloud::Firestore::DocumentReference) }
+    let(:stored) { { sources: { "mod-a": "https://example.com/u1/modinfo.json", "mod-b": "https://example.com/u2/modinfo.json" } } }
+
+    before do
+      allow(sources_doc).to receive_messages(get: OpenStruct.new(data: stored), set: write_result_double)
+      allow(client_double).to receive(:doc).with("meta/mod_sources").and_return(sources_doc)
+      allow(write_result_double).to receive(:is_a?) { |klass| klass == Google::Cloud::Firestore::CommitResponse::WriteResult }
+    end
+
+    describe "#sources" do
+      it "reads the doc ID to source URL map with string keys" do
+        expect(firestore.sources(:mods)).to eq("mod-a" => "https://example.com/u1/modinfo.json",
+                                                "mod-b" => "https://example.com/u2/modinfo.json")
+      end
+
+      it "accepts the singular type" do
+        expect(firestore.sources(:mod)).to eq(firestore.sources(:mods))
+      end
+
+      it "is empty when the doc does not exist yet" do
+        allow(sources_doc).to receive(:get).and_return(OpenStruct.new(data: nil))
+        expect(firestore.sources(:mods)).to eq({})
+      end
+
+      it "reads the tools map from meta/tool_sources" do
+        tool_doc = instance_double(Google::Cloud::Firestore::DocumentReference, get: OpenStruct.new(data: nil))
+        allow(client_double).to receive(:doc).with("meta/tool_sources").and_return(tool_doc)
+        expect(firestore.sources(:tools)).to eq({})
+      end
+
+      it "uses a configured path when the config names one" do
+        firebase_config.collections.meta.mod_sources = "custom/mod_sources"
+        custom_doc = instance_double(Google::Cloud::Firestore::DocumentReference, get: OpenStruct.new(data: nil))
+        allow(client_double).to receive(:doc).with("custom/mod_sources").and_return(custom_doc)
+        expect(firestore.sources(:mods)).to eq({})
+      end
+    end
+
+    describe "#record_source and #save_sources" do
+      it "writes the whole map once, after recording" do
+        firestore.record_source(:mods, "mod-c", "https://example.com/u3/modinfo.json")
+        firestore.record_source(:mods, "mod-a", "https://example.com/moved/modinfo.json")
+        expect(sources_doc).not_to have_received(:set)
+
+        firestore.save_sources(:mods)
+        expect(sources_doc).to have_received(:set).with(
+          { sources: { "mod-a" => "https://example.com/moved/modinfo.json", "mod-b" => "https://example.com/u2/modinfo.json",
+                       "mod-c" => "https://example.com/u3/modinfo.json" } }, merge: false
+        ).once
+      end
+
+      it "does not write when nothing changed" do
+        firestore.record_source(:mods, "mod-a", "https://example.com/u1/modinfo.json")
+        firestore.save_sources(:mods)
+        expect(sources_doc).not_to have_received(:set)
+      end
+    end
+
+    describe "#delete" do
+      it "drops a deleted doc's entry and saves the map" do
+        firestore.delete(:mod, instance_double(Icarus::Mod::Tools::Modinfo, id: "mod-a"))
+        expect(sources_doc).to have_received(:set)
+          .with({ sources: { "mod-b" => "https://example.com/u2/modinfo.json" } }, merge: false)
+      end
+
+      it "does not write the map for an unmapped doc" do
+        firestore.delete(:mod, instance_double(Icarus::Mod::Tools::Modinfo, id: "unmapped"))
+        expect(sources_doc).not_to have_received(:set)
+      end
+    end
+
+    describe "#move_source" do
+      it "gives the keeper the source of the doc whose data it took, and saves" do
+        firestore.move_source(:mod, from: "mod-b", to: "mod-a")
+        expect(sources_doc).to have_received(:set).with(
+          { sources: { "mod-a" => "https://example.com/u2/modinfo.json", "mod-b" => "https://example.com/u2/modinfo.json" } },
+          merge: false
+        )
+      end
+
+      it "leaves the keeper's mapping alone when the source doc has none" do
+        firestore.move_source(:mod, from: "unmapped", to: "mod-a")
+        expect(sources_doc).not_to have_received(:set)
+      end
+    end
+  end
+
   describe "#replace_data" do
     let(:keeper) do
       Icarus::Mod::Tools::Modinfo.new({ name: "Dupe", author: "Author", description: "Old" }, id: "keeper-id", created: Time.at(0))

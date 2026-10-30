@@ -59,7 +59,19 @@ module Icarus
           end
 
           def update(toolinfo)
-            @firestore.update(:tool, toolinfo, merge: false)
+            success = @firestore.update(:tool, toolinfo, merge: false)
+            @firestore.record_source(:tools, toolinfo.id, toolinfo.source_url) if success && toolinfo.source_url
+
+            success
+          end
+
+          # doc ID => toolinfo URL it was last synced from (see Firestore#sources)
+          def sources
+            @firestore.sources(:tools)
+          end
+
+          def save_sources
+            @firestore.save_sources(:tools)
           end
 
           def delete(toolinfo)
@@ -72,7 +84,11 @@ module Icarus
             tools = retrieve_from_url(url)[:tools]
             raise JSON::ParserError, "no 'tools' array" unless tools.is_a?(Array)
 
-            tools.map { |tool| Icarus::Mod::Tools::Toolinfo.new(tool) if /[a-z0-9]+/i.match?(tool[:name]) }
+            tools.filter_map do |data|
+              next unless /[a-z0-9]+/i.match?(data[:name])
+
+              Icarus::Mod::Tools::Toolinfo.new(data).tap { |tool| tool.source_url = url }
+            end
           end
         end
       end

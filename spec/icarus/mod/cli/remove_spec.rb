@@ -146,6 +146,54 @@ RSpec.describe Icarus::Mod::CLI::Remove do
       end
     end
 
+    context "with a real Firestore wrapper (source map consistency, #16)" do
+      let(:client) { instance_double(Google::Cloud::Firestore::Client) }
+      let(:mod_doc) { instance_double(Google::Cloud::Firestore::DocumentReference) }
+      let(:sources_doc) { instance_double(Google::Cloud::Firestore::DocumentReference) }
+      let(:write_result) { instance_double(Google::Cloud::Firestore::CommitResponse::WriteResult) }
+      let(:snapshot) do
+        double("DocumentSnapshot", data: { name: "Test Mod", author: "Test Author", description: "x" }, document_id: mod_id,
+                                   create_time: Time.now, update_time: Time.now)
+      end
+      let(:config) do
+        OpenStruct.new(credentials: OpenStruct.new(to_h: {}),
+                       collections: OpenStruct.new(meta: OpenStruct.new(modinfo: "meta/modinfo", toolinfo: "meta/toolinfo",
+                                                                        repositories: "meta/repos"),
+                                                   mods: "mods", tools: "tools"))
+      end
+
+      before do
+        allow(Icarus::Mod::Firestore).to receive(:new).and_call_original
+        allow(Icarus::Mod::Config).to receive(:firebase).and_return(config)
+        allow(Google::Cloud::Firestore).to receive(:new).and_return(client)
+        allow(write_result).to receive(:is_a?) { |klass| klass == Google::Cloud::Firestore::CommitResponse::WriteResult }
+        list_doc = instance_double(Google::Cloud::Firestore::DocumentReference, get: OpenStruct.new(list: []))
+        allow(client).to receive(:doc).and_return(list_doc)
+        allow(client).to receive(:doc).with("mods/#{mod_id}").and_return(mod_doc)
+        allow(client).to receive(:doc).with("meta/mod_sources").and_return(sources_doc)
+        allow(client).to receive(:col).and_return(instance_double(Google::Cloud::Firestore::CollectionReference, get: []))
+        allow(client).to receive(:col).with("mods")
+                                      .and_return(instance_double(Google::Cloud::Firestore::CollectionReference, get: [snapshot]))
+        allow(mod_doc).to receive(:delete).and_return(write_result)
+        allow(sources_doc).to receive_messages(
+          get: OpenStruct.new(data: { sources: { mod_id.to_sym => "https://a/modinfo.json", other: "https://b/modinfo.json" } }),
+          set: write_result
+        )
+      end
+
+      it "drops the removed mod from meta/mod_sources" do
+        expect { remove_command.mod(mod_id) }.to output(/Successfully removed mod/).to_stdout
+        expect(sources_doc).to have_received(:set).with({ sources: { "other" => "https://b/modinfo.json" } }, merge: false)
+      end
+
+      it "writes nothing on --dry-run" do
+        dry = described_class.new([], { dry_run: true }, {})
+        expect { dry.mod(mod_id) }.to output(/Dry run/).to_stdout
+        expect(mod_doc).not_to have_received(:delete)
+        expect(sources_doc).not_to have_received(:set)
+      end
+    end
+
     context "when the mod does not exist" do
       before do
         allow(firestore_double).to receive(:mods).and_return([])

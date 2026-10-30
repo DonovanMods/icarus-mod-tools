@@ -107,6 +107,12 @@ RSpec.describe Icarus::Mod::Tools::Sync::Mods do
         stub_fetch(broken_json_url).and_raise(JSON::ParserError, "unexpected token")
       end
 
+      it "remembers which URL each mod came from" do
+        result = nil
+        expect { result = modsync.info_array }.to output.to_stderr
+        expect(result.map(&:source_url)).to eq([ok_url])
+      end
+
       it "still returns the mods it could read" do
         result = nil
         expect { result = modsync.info_array }.to output.to_stderr
@@ -178,6 +184,36 @@ RSpec.describe Icarus::Mod::Tools::Sync::Mods do
         nonexistent = Icarus::Mod::Tools::Modinfo.new({ name: "SharedName", author: "Author3", description: "Test" })
         expect(modsync.find_info(nonexistent)).to be_nil
       end
+    end
+  end
+
+  describe "source tracking" do
+    before do
+      allow(firestore_double).to receive_messages(sources: { "id" => "url" }, save_sources: true, record_source: nil)
+    end
+
+    it "#sources reads the mods map" do
+      expect(modsync.sources).to eq("id" => "url")
+      expect(firestore_double).to have_received(:sources).with(:mods)
+    end
+
+    it "#save_sources saves the mods map" do
+      modsync.save_sources
+      expect(firestore_double).to have_received(:save_sources).with(:mods)
+    end
+
+    it "#update records the source URL after a successful write" do
+      modinfo.source_url = "https://example.com/modinfo.json"
+      modinfo.id = "doc-id"
+      modsync.update(modinfo)
+      expect(firestore_double).to have_received(:record_source).with(:mods, "doc-id", "https://example.com/modinfo.json")
+    end
+
+    it "#update records nothing when the write fails" do
+      allow(firestore_double).to receive(:update).and_return(false)
+      modinfo.source_url = "https://example.com/modinfo.json"
+      modsync.update(modinfo)
+      expect(firestore_double).not_to have_received(:record_source)
     end
   end
 

@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "digest"
+require "set"
 require "google/cloud/firestore"
 require "tools/modinfo"
 require "tools/toolinfo"
@@ -39,6 +40,50 @@ module Icarus
 
       def tools
         @tools ||= list(:tools)
+      end
+
+      # Internal map of mod/tool doc ID => the modinfo/toolinfo URL it was last synced from, kept in
+      # meta/mod_sources and meta/tool_sources ({ sources: { "<doc id>" => "<url>" } }). Sync uses it to protect
+      # only the docs of a source that failed transiently (#16). Consumers never read it; mods/tools docs are unchanged.
+      def sources(type)
+        key = pluralize(type)
+        @sources ||= {}
+        @sources[key] ||= begin
+          data = @client.doc(sources_path(key)).get&.data
+          (data&.dig(:sources) || {}).transform_keys(&:to_s)
+        end
+      end
+
+      # Records (in memory) that doc +id+ came from +url+; #save_sources writes it
+      def record_source(type, id, url)
+        return if id.nil? || url.nil?
+
+        map = sources(type)
+        return if map[id.to_s] == url
+
+        map[id.to_s] = url
+        sources_changed << pluralize(type)
+      end
+
+      # Writes the source map if it changed since it was read or last saved
+      def save_sources(type)
+        key = pluralize(type)
+        return true unless sources_changed.include?(key)
+
+        response = @client.doc(sources_path(key)).set({ sources: sources(key) }, merge: false)
+        success = response.is_a?(Google::Cloud::Firestore::CommitResponse::WriteResult)
+        sources_changed.delete(key) if success
+
+        success
+      end
+
+      # Gives doc +to+ the source of doc +from+ (cleanup copies +from+'s data onto +to+), and saves
+      def move_source(type, from:, to:)
+        url = sources(type)[from.to_s]
+        return true unless url
+
+        record_source(type, to, url)
+        save_sources(type)
       end
 
       def find_by_type(type:, name:, author:)
@@ -93,6 +138,7 @@ module Icarus
             cache_var = type == :mod ? :@mods : :@tools
             cached_collection = instance_variable_get(cache_var)
             cached_collection&.delete_if { |item| item.id == payload.id }
+            forget_source(type, payload.id)
           end
         when :modinfo, :toolinfo, :repositories
           update_array = (send(type) - [payload]).flatten.uniq
@@ -144,6 +190,22 @@ module Icarus
         cached_collection&.push(payload)
 
         response
+      end
+
+      def forget_source(type, id)
+        return unless sources(type).delete(id.to_s)
+
+        sources_changed << pluralize(type)
+        save_sources(type)
+      end
+
+      def sources_changed
+        @sources_changed ||= Set.new
+      end
+
+      def sources_path(collection)
+        name = :"#{collection.chomp('s')}_sources"
+        collections.meta&.send(name) || "meta/#{name}"
       end
 
       def replace_cached(collection, id, data)

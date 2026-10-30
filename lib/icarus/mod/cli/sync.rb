@@ -127,7 +127,10 @@ module Icarus
             end
 
             puts "    Copying #{copying}" if verbose?
-            return true if firestore.replace_data(singular_type, id: keeper.id, data: newest.data)
+            if firestore.replace_data(singular_type, id: keeper.id, data: newest.data)
+              firestore.move_source(singular_type, from: newest.id, to: keeper.id)
+              return true
+            end
 
             warn Paint["    Failed to copy #{newest.id} onto #{keeper.id} for #{keeper.author}/#{keeper.name}; " \
                        "nothing deleted for this entry", :red]
@@ -144,6 +147,35 @@ module Icarus
           def newest_first_key(item)
             time = item.updated_at || item.created_at
             [time ? -time.to_r : Float::INFINITY, item.id.to_s]
+          end
+
+          # Drops from +delete_array+ every doc that may only be missing because its source could not be read
+          # this run (#16): a doc mapped to a transiently failed URL, or, while any URL failed, a doc with no
+          # recorded source yet. A source that is gone (404/410) is not a transient failure, so authors still
+          # control removal, and docs from every other source are deleted as normal.
+          def protect_transient_sources(sync, delete_array)
+            failed_urls = sync.transient_failures
+            return delete_array if failed_urls.empty?
+
+            sources = sync.sources
+            kept, deletable = delete_array.partition do |list|
+              url = sources[list.id.to_s]
+              url.nil? || failed_urls.include?(url)
+            end
+            warn_kept(failed_urls, kept, sources) if kept.any?
+
+            deletable
+          end
+
+          def warn_kept(failed_urls, kept, sources)
+            warn Paint["WARNING: #{failed_urls.count} source(s) could not be read this run:", :yellow, :bright]
+            failed_urls.each { |url| warn Paint["  #{url}", :yellow] }
+            warn Paint["WARNING: Kept #{kept.count} outdated item(s) instead of deleting them:", :yellow, :bright]
+            kept.each do |list|
+              url = sources[list.id.to_s]
+              reason = url ? "its source could not be read (#{url})" : "no recorded source yet, and a source failed"
+              warn Paint["  #{list.author || 'NoOne'}/#{list.name || 'Unnamed'} (#{list.id}): #{reason}", :yellow]
+            end
           end
 
           def success_or_failure(status)
@@ -234,22 +266,11 @@ module Icarus
             end
 
             puts "Created/Updated #{info_array.count} Items" if verbose?
+            sync.save_sources
 
-            delete_array = list_array.filter { |list| sync.find_info(list).nil? }
+            delete_array = protect_transient_sources(sync, list_array.filter { |list| sync.find_info(list).nil? })
 
             return unless delete_array.any?
-
-            # Docs do not record which info URL they came from, so when any URL failed transiently we
-            # cannot tell its docs from genuinely removed ones: keep them all until a clean run (#16).
-            # A URL that is gone (404/410) is not a transient failure, so authors still control removal.
-            failed_urls = sync.transient_failures
-            if failed_urls.any?
-              warn Paint["WARNING: #{failed_urls.count} source(s) could not be read this run:", :yellow, :bright]
-              failed_urls.each { |url| warn Paint["  #{url}", :yellow] }
-              warn Paint["WARNING: Skipping deletion; #{delete_array.count} outdated #{type} kept until every source " \
-                         "can be read", :yellow, :bright]
-              return
-            end
 
             puts "Deleting outdated items..." if verbose?
             delete_array.each do |list|

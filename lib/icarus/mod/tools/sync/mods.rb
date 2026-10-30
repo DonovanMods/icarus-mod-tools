@@ -57,7 +57,19 @@ module Icarus
           end
 
           def update(modinfo)
-            @firestore.update(:mod, modinfo, merge: false)
+            success = @firestore.update(:mod, modinfo, merge: false)
+            @firestore.record_source(:mods, modinfo.id, modinfo.source_url) if success && modinfo.source_url
+
+            success
+          end
+
+          # doc ID => modinfo URL it was last synced from (see Firestore#sources)
+          def sources
+            @firestore.sources(:mods)
+          end
+
+          def save_sources
+            @firestore.save_sources(:mods)
           end
 
           def delete(modinfo)
@@ -70,7 +82,11 @@ module Icarus
             mods = retrieve_from_url(url)[:mods]
             raise JSON::ParserError, "no 'mods' array" unless mods.is_a?(Array)
 
-            mods.map { |mod| Icarus::Mod::Tools::Modinfo.new(mod) if /[a-z0-9]+/i.match?(mod[:name]) }
+            mods.filter_map do |data|
+              next unless /[a-z0-9]+/i.match?(data[:name])
+
+              Icarus::Mod::Tools::Modinfo.new(data).tap { |mod| mod.source_url = url }
+            end
           end
         end
       end
