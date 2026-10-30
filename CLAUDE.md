@@ -50,6 +50,8 @@ The tool implements a two-stage sync pipeline:
 
 All operations support `--dry-run` for safe testing.
 
+Deletion contract (#16): stage 2 deletes a doc only when no info file still lists it. `Sync::Helpers#retrieve_from_url` raises `RequestGone` for 404/410 (author removed the file: delete) and `RequestTransient` for everything else; invalid JSON also counts as transient. Docs do not record their source URL, so any transient failure skips the whole delete phase for that run. Stage 1 never drops list entries (`Firestore#update` unions), and a repo whose GitHub search fails transiently is skipped. New docs get a stable ID (`Firestore#stable_id`); `imt sync cleanup` keeps the oldest duplicate and copies the newest data onto it.
+
 ### Core Components
 
 **CLI Layer** (`lib/icarus/mod/cli/`)
