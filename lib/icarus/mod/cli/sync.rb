@@ -124,6 +124,11 @@ module Icarus
             puts "Retrieving Info Array..." if verbose?
             info_array = sync.data(repositories, verbose: verbose > 1)&.map(&:download_url)&.compact
 
+            # The list update only ever adds URLs, so a repository we could not search keeps its entries (#16)
+            sync.transient_failures.each do |repo|
+              warn Paint["WARNING: Could not search #{repo} this run; its existing #{type} entries were kept", :yellow]
+            end
+
             raise Icarus::Mod::Tools::Error, "no .json files found for #{type}" unless info_array&.any?
 
             if options[:dry_run]

@@ -199,6 +199,11 @@ RSpec.describe Icarus::Mod::Firestore do
       it "returns true on success" do
         expect(firestore.update(:modinfo, new_modinfo)).to be true
       end
+
+      it "keeps existing entries missing from the payload (a transiently failed repo keeps its URL)" do
+        firestore.update(:modinfo, [new_modinfo])
+        expect(document_double).to have_received(:set).with({ list: [existing_modinfo.first, new_modinfo] }, merge: false)
+      end
     end
 
     context "with :toolinfo type" do

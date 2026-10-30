@@ -22,11 +22,13 @@ RSpec.describe Icarus::Mod::CLI::Sync do
     allow(modinfo_sync_double).to receive_messages(
       repositories: ["owner/repo"],
       data: [double(download_url: "https://example.com/modinfo.json")],
+      transient_failures: [],
       update: true
     )
     allow(toolinfo_sync_double).to receive_messages(
       repositories: ["owner/repo"],
       data: [double(download_url: "https://example.com/toolinfo.json")],
+      transient_failures: [],
       update: true
     )
     allow(mods_sync_double).to receive_messages(
@@ -127,6 +129,21 @@ RSpec.describe Icarus::Mod::CLI::Sync do
       it "does not update firestore" do
         expect { sync_command.modinfo }.to output(/Dry run/).to_stdout
         expect(modinfo_sync_double).not_to have_received(:update)
+      end
+    end
+
+    context "when a repository could not be searched this run" do
+      before do
+        allow(modinfo_sync_double).to receive(:transient_failures).and_return(["https://github.com/flaky/repo"])
+      end
+
+      it "still saves the modinfo URLs it found" do
+        expect { sync_command.modinfo }.to output.to_stdout.and output.to_stderr
+        expect(modinfo_sync_double).to have_received(:update).with(["https://example.com/modinfo.json"])
+      end
+
+      it "warns that the repository's existing entries were kept" do
+        expect { sync_command.modinfo }.to output(%r{flaky/repo.*kept}m).to_stderr.and output.to_stdout
       end
     end
   end

@@ -16,7 +16,12 @@ module Icarus
             @firestore = client || Firestore.new
             @github = Github.new
             @repositories = []
+            @transient_failures = []
           end
+
+          # Repositories whose GitHub lookup failed this run for a reason that may clear up (rate limit,
+          # 5xx, network error). Their entries already in the list are kept: #update only ever adds (#16).
+          attr_reader :transient_failures
 
           def repositories
             @firestore.repositories
@@ -31,25 +36,40 @@ module Icarus
           end
 
           def data(repositories, verbose: false)
+            @transient_failures = []
+
             repositories.map do |repo|
               print "searching #{repo}..." if verbose
 
               case repo
               when /github/
-                @github.repository = repo
-                toolinfo_url = @github.find("toolinfo.json")
-
-                unless toolinfo_url
-                  puts "Skipped...no toolinfo.json" if verbose
-                  next
-                end
-
-                puts "Found!" if verbose
-                toolinfo_url
+                find_toolinfo(repo, verbose:)
               else
                 puts "Skipped...repository type not supported yet" if verbose
               end
             end.compact
+          end
+
+          private
+
+          def find_toolinfo(repo, verbose: false)
+            @github.repository = repo
+            toolinfo_url = @github.find("toolinfo.json")
+
+            unless toolinfo_url
+              puts "Skipped...no toolinfo.json" if verbose
+              return
+            end
+
+            puts "Found!" if verbose
+            toolinfo_url
+          rescue Octokit::NotFound
+            puts "Skipped...repository not found" if verbose
+            nil
+          rescue Octokit::Error, Faraday::Error => e
+            @transient_failures << repo
+            warn "Skipped; could not search #{repo} (#{e.class}); its existing toolinfo entries are kept"
+            nil
           end
         end
       end
