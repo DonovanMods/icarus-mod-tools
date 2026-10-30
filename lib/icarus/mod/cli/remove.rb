@@ -223,7 +223,8 @@ module Icarus
                 track_delete(type, "#{entity.name} (#{entity.id})") { firestore.delete(type, entity) }
               end
             end
-          rescue SocketError, IOError, SystemCallError, Timeout::Error, JSON::ParserError => e
+          rescue Tools::Sync::RequestFailed, SocketError, IOError, SystemCallError, Timeout::Error,
+                 JSON::ParserError => e
             @failed_entity_fetches ||= []
             @failed_entity_fetches << { url: url, error: e.class.name, message: e.message }
             warn Paint["Warning: Could not fetch #{url} to remove entities: #{e.message}", :yellow]
@@ -267,7 +268,7 @@ module Icarus
           end
 
           entities
-        rescue SocketError, IOError, SystemCallError, Timeout::Error, JSON::ParserError => e
+        rescue Tools::Sync::RequestFailed, SocketError, IOError, SystemCallError, Timeout::Error, JSON::ParserError => e
           warn Paint["Warning: Could not fetch #{url}: #{e.message}", :yellow] if verbose?
           nil
         end

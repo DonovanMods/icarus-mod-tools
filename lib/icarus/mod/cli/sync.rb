@@ -197,6 +197,18 @@ module Icarus
 
             return unless delete_array.any?
 
+            # Docs do not record which info URL they came from, so when any URL failed transiently we
+            # cannot tell its docs from genuinely removed ones: keep them all until a clean run (#16).
+            # A URL that is gone (404/410) is not a transient failure, so authors still control removal.
+            failed_urls = sync.transient_failures
+            if failed_urls.any?
+              warn Paint["WARNING: #{failed_urls.count} source(s) could not be read this run:", :yellow, :bright]
+              failed_urls.each { |url| warn Paint["  #{url}", :yellow] }
+              warn Paint["WARNING: Skipping deletion; #{delete_array.count} outdated #{type} kept until every source " \
+                         "can be read", :yellow, :bright]
+              return
+            end
+
             puts "Deleting outdated items..." if verbose?
             delete_array.each do |list|
               print "Deleting '#{list.author || 'NoOne'}/#{list.name || 'Unnamed'}'#{' ' * 20}" if verbose > 1

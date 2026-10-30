@@ -85,6 +85,66 @@ RSpec.describe Icarus::Mod::Tools::Sync::Mods do
         expect(result.first.name).to eq("Dupe Mod")
       end
     end
+    context "when some modinfo URLs fail" do
+      def stub_fetch(url)
+        allow_any_instance_of(Icarus::Mod::Tools::Sync::Helpers).to receive(:retrieve_from_url).with(url)
+      end
+
+      let(:ok_url) { "https://example.com/ok/modinfo.json" }
+      let(:gone_url) { "https://example.com/gone/modinfo.json" }
+      let(:flaky_url) { "https://example.com/flaky/modinfo.json" }
+      let(:broken_json_url) { "https://example.com/broken/modinfo.json" }
+      let(:ok_response) { { mods: [{ name: "Ok Mod", author: "Author", description: "Test" }] } }
+
+      before do
+        modsync.instance_variable_set(:@info_array, nil)
+        allow(firestore_double).to receive(:modinfo).and_return([ok_url, gone_url, flaky_url, broken_json_url])
+        stub_fetch(ok_url).and_return(ok_response)
+        stub_fetch(gone_url)
+          .and_raise(Icarus::Mod::Tools::Sync::RequestGone, "HTTP Request failed for #{gone_url} (404): Not Found")
+        stub_fetch(flaky_url)
+          .and_raise(Icarus::Mod::Tools::Sync::RequestTransient, "HTTP Request failed for #{flaky_url} (503)")
+        stub_fetch(broken_json_url).and_raise(JSON::ParserError, "unexpected token")
+      end
+
+      it "still returns the mods it could read" do
+        result = nil
+        expect { result = modsync.info_array }.to output.to_stderr
+        expect(result.map(&:name)).to eq(["Ok Mod"])
+      end
+
+      it "records transiently failed URLs (including invalid JSON) but not gone ones" do
+        expect { modsync.info_array }.to output.to_stderr
+        expect(modsync.transient_failures).to contain_exactly(flaky_url, broken_json_url)
+      end
+
+      it "warns loudly that invalid JSON keeps the existing entries" do
+        expect { modsync.info_array }.to output(/Invalid JSON in #{Regexp.escape(broken_json_url)}.*kept/m).to_stderr
+      end
+
+      it "computes the info array before reporting transient failures" do
+        expect { expect(modsync.transient_failures).to contain_exactly(flaky_url, broken_json_url) }.to output.to_stderr
+      end
+    end
+
+    context "when a modinfo file has no mods array" do
+      def stub_fetch(url)
+        allow_any_instance_of(Icarus::Mod::Tools::Sync::Helpers).to receive(:retrieve_from_url).with(url)
+      end
+
+      let(:odd_url) { "https://example.com/odd/modinfo.json" }
+
+      before do
+        modsync.instance_variable_set(:@info_array, nil)
+        allow(firestore_double).to receive(:modinfo).and_return([odd_url])
+        stub_fetch(odd_url).and_return({ other: [] })
+      end
+
+      it "treats it as malformed (transient) rather than as an empty file" do
+        expect { modsync.info_array }.to output(/#{Regexp.escape(odd_url)}/).to_stderr
+        expect(modsync.transient_failures).to eq([odd_url])
+      end
+    end
   end
 
   describe "#find" do

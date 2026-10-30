@@ -9,10 +9,33 @@ module Icarus
   module Mod
     module Tools
       module Sync
-        class RequestFailed < StandardError; end
+        # Raised when a source URL cannot be read. Subclasses say whether the failure is permanent
+        # (RequestGone: the author removed or renamed the file) or may clear up on a later run
+        # (RequestTransient). Sync only deletes catalog entries on a permanent failure (#16).
+        class RequestFailed < StandardError
+          def transient?
+            false
+          end
+        end
+
+        # The source is gone (HTTP 404 or 410): its entries may be removed from the catalog
+        class RequestGone < RequestFailed; end
+
+        # The source could not be read this run (timeout, network/DNS/TLS error, 5xx, 403/429 rate limits,
+        # or any other unexpected status): its entries must be kept until a run can read it again
+        class RequestTransient < RequestFailed
+          def transient?
+            true
+          end
+        end
 
         # Sync helper methods
         module Helpers
+          GONE_STATUS_CODES = %w[404 410].freeze
+
+          # Errors raised by Net::HTTP for a request that never got a usable response
+          NETWORK_ERRORS = [Timeout::Error, SocketError, SystemCallError, IOError, OpenSSL::SSL::SSLError, Net::ProtocolError].freeze
+
           def retrieve_from_url(url)
             raise RequestFailed, "Invalid URI: '#{url}'" unless url && url =~ URI::DEFAULT_PARSER.make_regexp
 
@@ -32,9 +55,16 @@ module Icarus
               }
             end
 
-            res = http.get(uri.path.empty? ? "/" : uri.path)
+            res = begin
+              http.get(uri.path.empty? ? "/" : uri.path)
+            rescue *NETWORK_ERRORS => e
+              raise RequestTransient, "HTTP Request failed for #{url} (#{e.class}): #{e.message}"
+            end
 
-            raise RequestFailed, "HTTP Request failed for #{url} (#{res.code}): #{res.message}" unless res&.code == "200"
+            unless res&.code == "200"
+              error_class = GONE_STATUS_CODES.include?(res&.code) ? RequestGone : RequestTransient
+              raise error_class, "HTTP Request failed for #{url} (#{res&.code}): #{res&.message}"
+            end
 
             JSON.parse(res.body, symbolize_names: true)
           end

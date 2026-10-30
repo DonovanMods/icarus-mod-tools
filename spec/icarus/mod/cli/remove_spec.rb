@@ -297,6 +297,16 @@ RSpec.describe Icarus::Mod::CLI::Remove do
         end.to output(/Warning: Could not fetch/).to_stderr
           .and output(/Successfully removed repository and all associated entries/).to_stdout
       end
+
+      it "warns and continues when the helper reports the network error as a RequestTransient (#16)" do
+        transient = Icarus::Mod::Tools::Sync::RequestTransient.new("HTTP Request failed (SocketError): Network error")
+        allow_any_instance_of(Icarus::Mod::Tools::Sync::Helpers).to receive(:retrieve_from_url).and_raise(transient)
+
+        expect do
+          cmd_with_cascade.repos(repo)
+        end.to output(/Warning: Could not fetch/).to_stderr
+          .and output(/Successfully removed repository and all associated entries/).to_stdout
+      end
     end
 
     context "URL matching precision (Fix #3)" do

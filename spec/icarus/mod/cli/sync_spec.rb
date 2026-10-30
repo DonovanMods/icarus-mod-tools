@@ -34,6 +34,7 @@ RSpec.describe Icarus::Mod::CLI::Sync do
       mods: [],
       find: nil,
       find_info: nil,
+      transient_failures: [],
       update: true,
       delete: true
     )
@@ -42,6 +43,7 @@ RSpec.describe Icarus::Mod::CLI::Sync do
       tools: [],
       find: nil,
       find_info: nil,
+      transient_failures: [],
       update: true,
       delete: true
     )
@@ -209,9 +211,56 @@ RSpec.describe Icarus::Mod::CLI::Sync do
         expect { sync_command.mods }.to output(/Updating/).to_stdout
       end
     end
+    context "when an existing mod no longer appears in any modinfo file" do
+      let(:stale_mod) { Icarus::Mod::Tools::Modinfo.new({ name: "Stale", author: "Someone", description: "Gone" }, id: "stale-id") }
+
+      before do
+        allow(mods_sync_double).to receive(:mods).and_return([stale_mod])
+      end
+
+      it "deletes it when every modinfo URL was read or is gone (the author removed it)" do
+        expect { sync_command.mods }.to output(/Deleted 1 outdated items/).to_stdout
+        expect(mods_sync_double).to have_received(:delete).with(stale_mod)
+      end
+
+      context "when a modinfo URL failed transiently this run" do
+        let(:flaky_url) { "https://raw.githubusercontent.com/someone/mods/main/modinfo.json" }
+
+        before do
+          allow(mods_sync_double).to receive(:transient_failures).and_return([flaky_url])
+        end
+
+        it "deletes nothing, because its docs cannot be told apart from the rest" do
+          expect { sync_command.mods }.to output.to_stdout.and output.to_stderr
+          expect(mods_sync_double).not_to have_received(:delete)
+        end
+
+        it "warns which URL failed and that the outdated items were kept" do
+          expect { sync_command.mods }.to output(/#{Regexp.escape(flaky_url)}.*kept/m).to_stderr.and output.to_stdout
+        end
+
+        it "still creates and updates the mods it could read" do
+          expect { sync_command.mods }.to output.to_stdout.and output.to_stderr
+          expect(mods_sync_double).to have_received(:update).with(modinfo)
+        end
+      end
+    end
   end
 
   describe "#tools" do
+    context "when a toolinfo URL failed transiently this run" do
+      let(:stale_tool) { Icarus::Mod::Tools::Toolinfo.new({ name: "Stale", author: "Someone", description: "Gone" }, id: "stale-tool") }
+
+      before do
+        allow(tools_sync_double).to receive_messages(tools: [stale_tool], transient_failures: ["https://example.com/toolinfo.json"])
+      end
+
+      it "deletes nothing" do
+        expect { sync_command.tools }.to output.to_stdout.and output.to_stderr
+        expect(tools_sync_double).not_to have_received(:delete)
+      end
+    end
+
     it "creates a Tools sync instance" do
       expect { sync_command.tools }.to output(String).to_stdout
       expect(Icarus::Mod::Tools::Sync::Tools).to have_received(:new).with(client: firestore_double)
