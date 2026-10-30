@@ -302,16 +302,30 @@ RSpec.describe Icarus::Mod::CLI::Sync do
 
   describe "#cleanup" do
     let(:options) { { verbose: [true], dry_run: false } }
-    let(:mod1) { Icarus::Mod::Tools::Modinfo.new({ name: "DupeMod", author: "Author1", description: "Test" }, id: "mod1", updated: Time.now - 3600) }
-    let(:mod2) { Icarus::Mod::Tools::Modinfo.new({ name: "DupeMod", author: "Author1", description: "Test" }, id: "mod2", updated: Time.now) }
-    let(:mod3) { Icarus::Mod::Tools::Modinfo.new({ name: "UniqueMod", author: "Author2", description: "Test" }, id: "mod3", updated: Time.now) }
-    let(:tool1) { Icarus::Mod::Tools::Toolinfo.new({ name: "DupeTool", author: "Author1", description: "Test" }, id: "tool1", updated: Time.now - 3600) }
-    let(:tool2) { Icarus::Mod::Tools::Toolinfo.new({ name: "DupeTool", author: "Author1", description: "Test" }, id: "tool2", updated: Time.now) }
+    let(:now) { Time.now }
+    let(:mod_klass) { Icarus::Mod::Tools::Modinfo }
+    let(:tool_klass) { Icarus::Mod::Tools::Toolinfo }
+    # mod1 is the oldest doc (the ID clients already hold); mod2 was created later but updated most recently
+    let(:mod1) do
+      mod_klass.new({ name: "DupeMod", author: "Author1", description: "Old", version: "1.0" },
+                    id: "mod1", created: now - 7200, updated: now - 3600)
+    end
+    let(:mod2) do
+      mod_klass.new({ name: "DupeMod", author: "Author1", description: "New", version: "2.0" },
+                    id: "mod2", created: now - 60, updated: now)
+    end
+    let(:mod3) do
+      mod_klass.new({ name: "UniqueMod", author: "Author2", description: "Test" }, id: "mod3", created: now, updated: now)
+    end
+    let(:tool1) do
+      tool_klass.new({ name: "DupeTool", author: "Author1", description: "Old" }, id: "tool1", created: now - 7200, updated: now - 3600)
+    end
+    let(:tool2) do
+      tool_klass.new({ name: "DupeTool", author: "Author1", description: "New" }, id: "tool2", created: now - 60, updated: now)
+    end
 
     before do
-      allow(firestore_double).to receive(:mods).and_return([mod1, mod2, mod3])
-      allow(firestore_double).to receive(:tools).and_return([tool1, tool2])
-      allow(firestore_double).to receive(:delete).and_return(true)
+      allow(firestore_double).to receive_messages(mods: [mod1, mod2, mod3], tools: [tool1, tool2], delete: true, replace_data: true)
     end
 
     it "identifies duplicate mods by name and author" do
@@ -322,25 +336,79 @@ RSpec.describe Icarus::Mod::CLI::Sync do
       expect { sync_command.cleanup }.to output(/Found 1 duplicate tool/).to_stdout
     end
 
-    it "keeps the most recently updated entry" do
-      expect { sync_command.cleanup }.to output(/Keeping.*mod2/).to_stdout
+    it "keeps the oldest entry, whose ID clients already hold" do
+      expect { sync_command.cleanup }.to output(/Keeping.*mod1/).to_stdout
     end
 
-    it "deletes older duplicate entries" do
-      sync_command.cleanup
-      expect(firestore_double).to have_received(:delete).with(:mod, mod1)
-      expect(firestore_double).to have_received(:delete).with(:tool, tool1)
+    it "copies the most recently updated entry's data onto the keeper" do
+      expect { sync_command.cleanup }.to output(String).to_stdout
+      expect(firestore_double).to have_received(:replace_data).with(:mod, id: "mod1", data: mod2.data)
+      expect(firestore_double).to have_received(:replace_data).with(:tool, id: "tool1", data: tool2.data)
+    end
+
+    it "copies before deleting" do
+      expect { sync_command.cleanup }.to output(String).to_stdout
+      expect(firestore_double).to have_received(:replace_data).with(:mod, any_args).ordered
+      expect(firestore_double).to have_received(:delete).with(:mod, mod2).ordered
+    end
+
+    it "deletes the newer duplicate entries" do
+      expect { sync_command.cleanup }.to output(String).to_stdout
+      expect(firestore_double).to have_received(:delete).with(:mod, mod2)
+      expect(firestore_double).to have_received(:delete).with(:tool, tool2)
+      expect(firestore_double).not_to have_received(:delete).with(:mod, mod1)
     end
 
     it "does not delete unique entries" do
-      sync_command.cleanup
+      expect { sync_command.cleanup }.to output(String).to_stdout
       expect(firestore_double).not_to have_received(:delete).with(:mod, mod3)
+    end
+
+    context "when the oldest entry is also the most recently updated" do
+      let(:mod1) do
+        mod_klass.new({ name: "DupeMod", author: "Author1", description: "Old" }, id: "mod1", created: now - 7200, updated: now + 60)
+      end
+
+      it "does not copy anything onto the keeper" do
+        expect { sync_command.cleanup }.to output(String).to_stdout
+        expect(firestore_double).not_to have_received(:replace_data).with(:mod, any_args)
+        expect(firestore_double).to have_received(:delete).with(:mod, mod2)
+      end
+    end
+
+    context "when created_at is missing" do
+      let(:mod1) { mod_klass.new({ name: "DupeMod", author: "Author1", description: "Old" }, id: "mod1", updated: now) }
+      let(:mod2) { mod_klass.new({ name: "DupeMod", author: "Author1", description: "New" }, id: "mod2", updated: now - 3600) }
+
+      it "falls back to the earliest updated_at" do
+        expect { sync_command.cleanup }.to output(/Keeping.*mod2/).to_stdout
+      end
+    end
+
+    context "when timestamps tie" do
+      let(:mod1) { mod_klass.new({ name: "DupeMod", author: "Author1", description: "A" }, id: "zzz", created: now, updated: now) }
+      let(:mod2) { mod_klass.new({ name: "DupeMod", author: "Author1", description: "B" }, id: "aaa", created: now, updated: now) }
+
+      it "falls back to the lowest id" do
+        expect { sync_command.cleanup }.to output(/Keeping.*aaa/).to_stdout
+      end
+    end
+
+    context "when copying onto the keeper fails" do
+      before do
+        allow(firestore_double).to receive(:replace_data).with(:mod, any_args).and_return(false)
+      end
+
+      it "deletes nothing from that group and warns" do
+        expect { sync_command.cleanup }.to output(/DupeMod/).to_stderr.and output(String).to_stdout
+        expect(firestore_double).not_to have_received(:delete).with(:mod, anything)
+        expect(firestore_double).to have_received(:delete).with(:tool, tool2)
+      end
     end
 
     context "when no duplicates exist" do
       before do
-        allow(firestore_double).to receive(:mods).and_return([mod3])
-        allow(firestore_double).to receive(:tools).and_return([])
+        allow(firestore_double).to receive_messages(mods: [mod3], tools: [])
       end
 
       it "reports no duplicates found" do
@@ -351,13 +419,14 @@ RSpec.describe Icarus::Mod::CLI::Sync do
     context "with dry_run enabled" do
       let(:options) { { verbose: [true], dry_run: true } }
 
-      it "does not delete any entries" do
+      it "changes nothing" do
         expect { sync_command.cleanup }.to output(/Dry run/).to_stdout
         expect(firestore_double).not_to have_received(:delete)
+        expect(firestore_double).not_to have_received(:replace_data)
       end
 
-      it "shows what would be deleted" do
-        expect { sync_command.cleanup }.to output(/Would delete.*mod1/).to_stdout
+      it "shows what would be kept, copied and deleted" do
+        expect { sync_command.cleanup }.to output(/Keeping.*mod1.*Would copy.*mod2.*mod1.*Would delete.*mod2/m).to_stdout
       end
     end
   end

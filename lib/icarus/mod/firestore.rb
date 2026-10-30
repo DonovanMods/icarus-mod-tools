@@ -62,6 +62,19 @@ module Icarus
         response.is_a?(Google::Cloud::Firestore::DocumentReference) || response.is_a?(Google::Cloud::Firestore::CommitResponse::WriteResult)
       end
 
+      # Overwrites the :mod or :tool document at +id+ with +data+ (merge: false), keeping the document's id.
+      # Used by `imt sync cleanup` to copy the newest duplicate's data onto the oldest one (#16).
+      def replace_data(type, id:, data:)
+        raise "Invalid type: #{type}" unless %i[mod tool].include?(type.to_sym)
+
+        collection = pluralize(type)
+        response = @client.doc("#{collections.send(collection)}/#{id}").set(data, merge: false)
+        success = response.is_a?(Google::Cloud::Firestore::CommitResponse::WriteResult)
+        replace_cached(collection, id, data) if success
+
+        success
+      end
+
       def delete(type, payload)
         case type.to_sym
         when :mod, :tool
@@ -115,6 +128,15 @@ module Icarus
         cached_collection&.push(payload)
 
         doc_ref
+      end
+
+      def replace_cached(collection, id, data)
+        cached_collection = instance_variable_get(:"@#{collection}")
+        index = cached_collection&.index { |item| item.id == id }
+        return unless index
+
+        old = cached_collection[index]
+        cached_collection[index] = old.class.new(data, id:, created: old.created_at, updated: Time.now)
       end
 
       def pluralize(type)

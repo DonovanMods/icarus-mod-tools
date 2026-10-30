@@ -80,33 +80,70 @@ module Icarus
 
             puts "Found #{duplicates.length} duplicate #{singular_type}(s) to clean up:" if verbose?
 
+            deleted_count = 0
             duplicates.each do |key, items|
               name, author = key
-              # Sort by updated_at descending, keep the most recent
-              sorted = items.sort_by { |item| item.updated_at || Time.at(0) }.reverse
-              keeper = sorted.first
-              to_delete = sorted[1..]
-
               puts "  #{author}/#{name}: #{items.length} entries" if verbose?
-              puts "    Keeping: #{keeper.id} (updated: #{keeper.updated_at})" if verbose?
-
-              to_delete.each do |item|
-                if options[:dry_run]
-                  puts Paint["    Would delete: #{item.id} (updated: #{item.updated_at})", :yellow] if verbose?
-                else
-                  puts "    Deleting: #{item.id} (updated: #{item.updated_at})" if verbose?
-                  response = firestore.delete(singular_type, item)
-                  puts "      #{success_or_failure(response)}" if verbose > 1
-                end
-              end
+              deleted_count += merge_duplicates(singular_type, items)
             end
 
-            deleted_count = duplicates.values.sum { |items| items.length - 1 }
             if options[:dry_run]
               puts Paint["Dry run; no changes made. Would have deleted #{deleted_count} duplicate #{type}.", :yellow] if verbose?
             else
               puts "Deleted #{deleted_count} duplicate #{type}." if verbose?
             end
+          end
+
+          # Keeps the oldest entry (the ID clients already hold), copies the most recently updated entry's
+          # data onto it, then deletes the rest. Returns how many entries were (or would be) deleted.
+          def merge_duplicates(singular_type, items)
+            keeper = items.min_by { |item| oldest_first_key(item) }
+            newest = items.min_by { |item| newest_first_key(item) }
+            to_delete = items.reject { |item| item.equal?(keeper) }
+
+            puts "    Keeping: #{keeper.id} (created: #{keeper.created_at}, updated: #{keeper.updated_at})" if verbose?
+            return 0 unless copy_onto_keeper(singular_type, keeper, newest)
+
+            to_delete.each do |item|
+              if options[:dry_run]
+                puts Paint["    Would delete: #{item.id} (updated: #{item.updated_at})", :yellow] if verbose?
+              else
+                puts "    Deleting: #{item.id} (updated: #{item.updated_at})" if verbose?
+                response = firestore.delete(singular_type, item)
+                puts "      #{success_or_failure(response)}" if verbose > 1
+              end
+            end
+
+            to_delete.length
+          end
+
+          def copy_onto_keeper(singular_type, keeper, newest)
+            return true if newest.equal?(keeper)
+
+            copying = "data from #{newest.id} (updated: #{newest.updated_at}) onto #{keeper.id}"
+            if options[:dry_run]
+              puts Paint["    Would copy #{copying}", :yellow] if verbose?
+              return true
+            end
+
+            puts "    Copying #{copying}" if verbose?
+            return true if firestore.replace_data(singular_type, id: keeper.id, data: newest.data)
+
+            warn Paint["    Failed to copy #{newest.id} onto #{keeper.id} for #{keeper.author}/#{keeper.name}; " \
+                       "nothing deleted for this entry", :red]
+            false
+          end
+
+          # Earliest created_at, then updated_at, then id: deterministic even with missing timestamps
+          def oldest_first_key(item)
+            time = item.created_at || item.updated_at
+            [time ? time.to_r : Float::INFINITY, item.id.to_s]
+          end
+
+          # Latest updated_at, then created_at; ties go to the lowest id
+          def newest_first_key(item)
+            time = item.updated_at || item.created_at
+            [time ? -time.to_r : Float::INFINITY, item.id.to_s]
           end
 
           def success_or_failure(status)

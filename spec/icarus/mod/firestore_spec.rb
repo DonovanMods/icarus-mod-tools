@@ -324,6 +324,40 @@ RSpec.describe Icarus::Mod::Firestore do
     end
   end
 
+  describe "#replace_data" do
+    let(:keeper) do
+      Icarus::Mod::Tools::Modinfo.new({ name: "Dupe", author: "Author", description: "Old" }, id: "keeper-id", created: Time.at(0))
+    end
+    let(:newest_data) { { name: "Dupe", author: "Author", description: "New", version: "2.0", meta: { status: {} } } }
+
+    before do
+      firestore.instance_variable_set(:@mods, [keeper])
+      allow(write_result_double).to receive(:is_a?) { |klass| klass == Google::Cloud::Firestore::CommitResponse::WriteResult }
+    end
+
+    it "overwrites the document at the given id with the data, not merging" do
+      firestore.replace_data(:mod, id: "keeper-id", data: newest_data)
+      expect(client_double).to have_received(:doc).with("mods/keeper-id")
+      expect(document_double).to have_received(:set).with(newest_data, merge: false)
+    end
+
+    it "returns true on success" do
+      expect(firestore.replace_data(:mod, id: "keeper-id", data: newest_data)).to be true
+    end
+
+    it "updates the cached entry in place, keeping its id and created_at" do
+      firestore.replace_data(:mod, id: "keeper-id", data: newest_data)
+      cached = firestore.mods.find { |mod| mod.id == "keeper-id" }
+      expect(cached.description).to eq("New")
+      expect(cached.created_at).to eq(Time.at(0))
+      expect(firestore.mods.size).to eq(1)
+    end
+
+    it "rejects types other than mod and tool" do
+      expect { firestore.replace_data(:modinfo, id: "x", data: {}) }.to raise_error(/Invalid type/)
+    end
+  end
+
   describe "#delete" do
     context "with :mod type" do
       let(:modinfo) do
