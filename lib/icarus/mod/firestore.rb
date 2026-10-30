@@ -1,5 +1,6 @@
 # frozen_string_literal: true
 
+require "digest"
 require "google/cloud/firestore"
 require "tools/modinfo"
 require "tools/toolinfo"
@@ -42,6 +43,14 @@ module Icarus
 
       def find_by_type(type:, name:, author:)
         instance_variable_get(:"@#{type}").find { |obj| obj.name == name && obj.author == author }
+      end
+
+      # A deterministic document id for a new :mods or :tools document, so a mod that is deleted and later
+      # re-added gets the same id back (#16). Author and name are case- and whitespace-normalised, and the
+      # collection is part of the key so a mod and a tool with the same author and name do not collide.
+      def stable_id(type, author:, name:)
+        key = [pluralize(type), author.to_s.strip.downcase, name.to_s.strip.downcase].join("\0")
+        Digest::SHA256.hexdigest(key)[0, 20]
       end
 
       def update(type, payload, merge: false)
@@ -119,15 +128,22 @@ module Icarus
 
         return @client.doc("#{collections.send(type)}/#{doc_id}").set(payload.to_h, merge:) if doc_id
 
-        doc_ref = @client.col(collections.send(type)).add(payload.to_h)
+        # New document: write it at its stable id (set creates it, or updates a doc a previous re-add left there).
+        # Only if that id is already held by a different mod (same author/name in another case) fall back to add.
+        cached_collection = instance_variable_get(:"@#{type}")
+        new_id = stable_id(type, author: payload.author, name: payload.name)
+        if cached_collection&.any? { |item| item.id == new_id }
+          response = @client.col(collections.send(type)).add(payload.to_h)
+          new_id = response.document_id
+        else
+          response = @client.doc("#{collections.send(type)}/#{new_id}").set(payload.to_h, merge:)
+        end
 
         # Update cache to prevent duplicate creation within the same sync run
-        payload.id = doc_ref.document_id
-        cache_var = :"@#{type}"
-        cached_collection = instance_variable_get(cache_var)
+        payload.id = new_id
         cached_collection&.push(payload)
 
-        doc_ref
+        response
       end
 
       def replace_cached(collection, id, data)
