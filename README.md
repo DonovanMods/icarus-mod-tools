@@ -132,6 +132,7 @@ Options:
 ```sh
 Commands:
   imt sync all             # Run all sync jobs
+  imt sync cleanup         # Remove duplicate entries from mods and tools collections
   imt sync help [COMMAND]  # Describe subcommands or one specific subcommand
   imt sync modinfo         # Reads from 'meta/repos/list' and Syncs any modinfo files we find (github only for now)
   imt sync mods            # Reads from 'meta/modinfo/list' and updates the 'mods' database accordingly
@@ -146,6 +147,10 @@ Options:
                                    # Default: [true]
       [--dry-run], [--no-dry-run]  # Dry run (no changes will be made)
 ```
+
+**Removal**: Mod and tool authors control their own entries. If a `modinfo.json` or `toolinfo.json` is removed or renamed (so it returns HTTP 404 or 410), `imt sync mods`/`tools` deletes its entries. If a file cannot be read for any other reason (timeout, network error, server error, rate limit, or invalid JSON), that file's entries are kept on that run and a warning names them; other sources are unaffected. Sync tracks which file each entry came from in the internal `meta/mod_sources` and `meta/tool_sources` documents (override with `collections.meta.mod_sources` / `tool_sources` in the config). An entry with no recorded source yet is kept while any source fails.
+
+**IDs**: New mods and tools get a document ID derived from their type, author and name, so an entry that is deleted and later re-added gets the same ID. `imt sync cleanup` keeps the oldest of any duplicates (the ID clients already have), copies the newest duplicate's data onto it, and deletes the rest.
 
 **Note**: Sync operations automatically convert GitHub URLs to the correct `raw.githubusercontent.com` format for direct downloads. If you're using GitHub URLs in `modinfo.json` or `toolinfo.json` files, you can use either `/blob/` or `/raw/` formats and they will be automatically converted. Warnings will be displayed when URLs are auto-fixed so you can update your source files.
 

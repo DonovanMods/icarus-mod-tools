@@ -199,6 +199,11 @@ RSpec.describe Icarus::Mod::Firestore do
       it "returns true on success" do
         expect(firestore.update(:modinfo, new_modinfo)).to be true
       end
+
+      it "keeps existing entries missing from the payload (a transiently failed repo keeps its URL)" do
+        firestore.update(:modinfo, [new_modinfo])
+        expect(document_double).to have_received(:set).with({ list: [existing_modinfo.first, new_modinfo] }, merge: false)
+      end
     end
 
     context "with :toolinfo type" do
@@ -230,31 +235,97 @@ RSpec.describe Icarus::Mod::Firestore do
       end
 
       context "when mod does not exist" do
+        let(:stable_id) { Digest::SHA256.hexdigest("mods\0test author\0test mod")[0, 20] }
+
         before do
           firestore.instance_variable_set(:@mods, [])
         end
 
-        it "creates a new document" do
+        it "creates the document at a deterministic id instead of a random one" do
           firestore.update(:mod, modinfo)
-          expect(collection_double).to have_received(:add)
+          expect(collection_double).not_to have_received(:add)
+          expect(client_double).to have_received(:doc).with("mods/#{stable_id}")
+          expect(document_double).to have_received(:set).with(modinfo.to_h, merge: false)
         end
 
-        it "sets payload.id from the new document reference" do
-          firestore.update(:mod, modinfo)
-          expect(modinfo.id).to eq("new-doc-id")
+        it "returns true on success" do
+          allow(write_result_double).to receive(:is_a?) { |klass| klass == Google::Cloud::Firestore::CommitResponse::WriteResult }
+          expect(firestore.update(:mod, modinfo)).to be true
         end
 
-        it "updates cache so subsequent update for same name+author does not call add again" do
+        it "sets payload.id to the stable id" do
           firestore.update(:mod, modinfo)
-          expect(collection_double).to have_received(:add).once
+          expect(modinfo.id).to eq(stable_id)
+        end
 
-          # Second update for same name+author should find it in cache and use set instead
+        it "gives a deleted and re-added mod the same id" do
+          firestore.update(:mod, modinfo)
+          first_id = modinfo.id
+          firestore.instance_variable_set(:@mods, [])
+
+          readded = Icarus::Mod::Tools::Modinfo.new({ name: "Test Mod", author: "Test Author", version: "3.0", description: "Back" })
+          firestore.update(:mod, readded)
+          expect(readded.id).to eq(first_id)
+        end
+
+        it "updates cache so subsequent update for same name+author does not create again" do
+          firestore.update(:mod, modinfo)
+
           second_modinfo = Icarus::Mod::Tools::Modinfo.new(
             { name: "Test Mod", author: "Test Author", version: "2.0", description: "Updated" }
           )
           firestore.update(:mod, second_modinfo)
-          expect(collection_double).to have_received(:add).once
-          expect(document_double).to have_received(:set).at_least(:once)
+          expect(collection_double).not_to have_received(:add)
+          expect(client_double).to have_received(:doc).with("mods/#{stable_id}").twice
+          expect(firestore.mods.count { |mod| mod.id == stable_id }).to eq(1)
+        end
+
+        it "re-creates a mod deleted earlier in the same run at the same id" do
+          allow(write_result_double).to receive(:is_a?) { |klass| klass == Google::Cloud::Firestore::CommitResponse::WriteResult }
+          firestore.update(:mod, modinfo)
+          firestore.delete(:mod, modinfo)
+          expect(firestore.mods).to be_empty
+
+          readded = Icarus::Mod::Tools::Modinfo.new({ name: "Test Mod", author: "Test Author", description: "Back" })
+          firestore.update(:mod, readded)
+          expect(readded.id).to eq(stable_id)
+          expect(collection_double).not_to have_received(:add)
+        end
+
+        context "when a differently-cased mod already holds the stable id" do
+          let(:case_variant) do
+            Icarus::Mod::Tools::Modinfo.new({ name: "TEST MOD", author: "test author", description: "Other" }, id: stable_id)
+          end
+
+          before do
+            firestore.instance_variable_set(:@mods, [case_variant])
+          end
+
+          it "falls back to a random id rather than overwriting the other mod" do
+            firestore.update(:mod, modinfo)
+            expect(collection_double).to have_received(:add).with(modinfo.to_h)
+            expect(modinfo.id).to eq("new-doc-id")
+            expect(firestore.mods.map(&:id)).to contain_exactly(stable_id, "new-doc-id")
+          end
+        end
+      end
+
+      describe "#stable_id" do
+        it "normalises case and surrounding whitespace" do
+          expect(firestore.stable_id(:mods, author: "  Test Author ", name: "TEST MOD\n"))
+            .to eq(firestore.stable_id(:mods, author: "test author", name: "test mod"))
+        end
+
+        it "is a 20 character lowercase hex string" do
+          expect(firestore.stable_id(:mods, author: "A", name: "B")).to match(/\A[0-9a-f]{20}\z/)
+        end
+
+        it "differs between mods and tools with the same author and name" do
+          expect(firestore.stable_id(:mods, author: "A", name: "B")).not_to eq(firestore.stable_id(:tools, author: "A", name: "B"))
+        end
+
+        it "does not confuse author and name boundaries" do
+          expect(firestore.stable_id(:mods, author: "ab", name: "c")).not_to eq(firestore.stable_id(:mods, author: "a", name: "bc"))
         end
       end
 
@@ -276,7 +347,16 @@ RSpec.describe Icarus::Mod::Firestore do
             id: "existing-id"
           )
           firestore.update(:mod, modinfo_with_id)
+          expect(client_double).to have_received(:doc).with("mods/existing-id")
           expect(document_double).to have_received(:set)
+        end
+
+        it "keeps the existing random id when found by name and author" do
+          update = Icarus::Mod::Tools::Modinfo.new({ name: "Test Mod", author: "Test Author", version: "2.0", description: "Updated" })
+          firestore.update(:mod, update)
+          expect(client_double).to have_received(:doc).with("mods/existing-id")
+          expect(collection_double).not_to have_received(:add)
+          expect(update.id).to be_nil.or eq("existing-id")
         end
       end
     end
@@ -297,9 +377,10 @@ RSpec.describe Icarus::Mod::Firestore do
         firestore.instance_variable_set(:@tools, [])
       end
 
-      it "creates a new tool document" do
+      it "creates a new tool document at the tools stable id" do
         firestore.update(:tool, toolinfo)
-        expect(collection_double).to have_received(:add)
+        expect(collection_double).not_to have_received(:add)
+        expect(client_double).to have_received(:doc).with("tools/#{firestore.stable_id(:tools, author: 'Test Author', name: 'Test Tool')}")
       end
     end
 
@@ -316,6 +397,128 @@ RSpec.describe Icarus::Mod::Firestore do
         firestore.update(:modinfo, new_modinfo, merge: true)
         expect(document_double).to have_received(:set).with(hash_including(:list), merge: true)
       end
+    end
+  end
+
+  describe "source tracking (meta/mod_sources, meta/tool_sources)" do
+    let(:sources_doc) { instance_double(Google::Cloud::Firestore::DocumentReference) }
+    let(:stored) { { sources: { "mod-a": "https://example.com/u1/modinfo.json", "mod-b": "https://example.com/u2/modinfo.json" } } }
+
+    before do
+      allow(sources_doc).to receive_messages(get: OpenStruct.new(data: stored), set: write_result_double)
+      allow(client_double).to receive(:doc).with("meta/mod_sources").and_return(sources_doc)
+      allow(write_result_double).to receive(:is_a?) { |klass| klass == Google::Cloud::Firestore::CommitResponse::WriteResult }
+    end
+
+    describe "#sources" do
+      it "reads the doc ID to source URL map with string keys" do
+        expect(firestore.sources(:mods)).to eq("mod-a" => "https://example.com/u1/modinfo.json",
+                                                "mod-b" => "https://example.com/u2/modinfo.json")
+      end
+
+      it "accepts the singular type" do
+        expect(firestore.sources(:mod)).to eq(firestore.sources(:mods))
+      end
+
+      it "is empty when the doc does not exist yet" do
+        allow(sources_doc).to receive(:get).and_return(OpenStruct.new(data: nil))
+        expect(firestore.sources(:mods)).to eq({})
+      end
+
+      it "reads the tools map from meta/tool_sources" do
+        tool_doc = instance_double(Google::Cloud::Firestore::DocumentReference, get: OpenStruct.new(data: nil))
+        allow(client_double).to receive(:doc).with("meta/tool_sources").and_return(tool_doc)
+        expect(firestore.sources(:tools)).to eq({})
+      end
+
+      it "uses a configured path when the config names one" do
+        firebase_config.collections.meta.mod_sources = "custom/mod_sources"
+        custom_doc = instance_double(Google::Cloud::Firestore::DocumentReference, get: OpenStruct.new(data: nil))
+        allow(client_double).to receive(:doc).with("custom/mod_sources").and_return(custom_doc)
+        expect(firestore.sources(:mods)).to eq({})
+      end
+    end
+
+    describe "#record_source and #save_sources" do
+      it "writes the whole map once, after recording" do
+        firestore.record_source(:mods, "mod-c", "https://example.com/u3/modinfo.json")
+        firestore.record_source(:mods, "mod-a", "https://example.com/moved/modinfo.json")
+        expect(sources_doc).not_to have_received(:set)
+
+        firestore.save_sources(:mods)
+        expect(sources_doc).to have_received(:set).with(
+          { sources: { "mod-a" => "https://example.com/moved/modinfo.json", "mod-b" => "https://example.com/u2/modinfo.json",
+                       "mod-c" => "https://example.com/u3/modinfo.json" } }, merge: false
+        ).once
+      end
+
+      it "does not write when nothing changed" do
+        firestore.record_source(:mods, "mod-a", "https://example.com/u1/modinfo.json")
+        firestore.save_sources(:mods)
+        expect(sources_doc).not_to have_received(:set)
+      end
+    end
+
+    describe "#delete" do
+      it "drops a deleted doc's entry and saves the map" do
+        firestore.delete(:mod, instance_double(Icarus::Mod::Tools::Modinfo, id: "mod-a"))
+        expect(sources_doc).to have_received(:set)
+          .with({ sources: { "mod-b" => "https://example.com/u2/modinfo.json" } }, merge: false)
+      end
+
+      it "does not write the map for an unmapped doc" do
+        firestore.delete(:mod, instance_double(Icarus::Mod::Tools::Modinfo, id: "unmapped"))
+        expect(sources_doc).not_to have_received(:set)
+      end
+    end
+
+    describe "#move_source" do
+      it "gives the keeper the source of the doc whose data it took, and saves" do
+        firestore.move_source(:mod, from: "mod-b", to: "mod-a")
+        expect(sources_doc).to have_received(:set).with(
+          { sources: { "mod-a" => "https://example.com/u2/modinfo.json", "mod-b" => "https://example.com/u2/modinfo.json" } },
+          merge: false
+        )
+      end
+
+      it "leaves the keeper's mapping alone when the source doc has none" do
+        firestore.move_source(:mod, from: "unmapped", to: "mod-a")
+        expect(sources_doc).not_to have_received(:set)
+      end
+    end
+  end
+
+  describe "#replace_data" do
+    let(:keeper) do
+      Icarus::Mod::Tools::Modinfo.new({ name: "Dupe", author: "Author", description: "Old" }, id: "keeper-id", created: Time.at(0))
+    end
+    let(:newest_data) { { name: "Dupe", author: "Author", description: "New", version: "2.0", meta: { status: {} } } }
+
+    before do
+      firestore.instance_variable_set(:@mods, [keeper])
+      allow(write_result_double).to receive(:is_a?) { |klass| klass == Google::Cloud::Firestore::CommitResponse::WriteResult }
+    end
+
+    it "overwrites the document at the given id with the data, not merging" do
+      firestore.replace_data(:mod, id: "keeper-id", data: newest_data)
+      expect(client_double).to have_received(:doc).with("mods/keeper-id")
+      expect(document_double).to have_received(:set).with(newest_data, merge: false)
+    end
+
+    it "returns true on success" do
+      expect(firestore.replace_data(:mod, id: "keeper-id", data: newest_data)).to be true
+    end
+
+    it "updates the cached entry in place, keeping its id and created_at" do
+      firestore.replace_data(:mod, id: "keeper-id", data: newest_data)
+      cached = firestore.mods.find { |mod| mod.id == "keeper-id" }
+      expect(cached.description).to eq("New")
+      expect(cached.created_at).to eq(Time.at(0))
+      expect(firestore.mods.size).to eq(1)
+    end
+
+    it "rejects types other than mod and tool" do
+      expect { firestore.replace_data(:modinfo, id: "x", data: {}) }.to raise_error(/Invalid type/)
     end
   end
 

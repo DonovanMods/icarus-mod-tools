@@ -80,32 +80,101 @@ module Icarus
 
             puts "Found #{duplicates.length} duplicate #{singular_type}(s) to clean up:" if verbose?
 
+            deleted_count = 0
             duplicates.each do |key, items|
               name, author = key
-              # Sort by updated_at descending, keep the most recent
-              sorted = items.sort_by { |item| item.updated_at || Time.at(0) }.reverse
-              keeper = sorted.first
-              to_delete = sorted[1..]
-
               puts "  #{author}/#{name}: #{items.length} entries" if verbose?
-              puts "    Keeping: #{keeper.id} (updated: #{keeper.updated_at})" if verbose?
-
-              to_delete.each do |item|
-                if options[:dry_run]
-                  puts Paint["    Would delete: #{item.id} (updated: #{item.updated_at})", :yellow] if verbose?
-                else
-                  puts "    Deleting: #{item.id} (updated: #{item.updated_at})" if verbose?
-                  response = firestore.delete(singular_type, item)
-                  puts "      #{success_or_failure(response)}" if verbose > 1
-                end
-              end
+              deleted_count += merge_duplicates(singular_type, items)
             end
 
-            deleted_count = duplicates.values.sum { |items| items.length - 1 }
             if options[:dry_run]
               puts Paint["Dry run; no changes made. Would have deleted #{deleted_count} duplicate #{type}.", :yellow] if verbose?
             else
               puts "Deleted #{deleted_count} duplicate #{type}." if verbose?
+            end
+          end
+
+          # Keeps the oldest entry (the ID clients already hold), copies the most recently updated entry's
+          # data onto it, then deletes the rest. Returns how many entries were (or would be) deleted.
+          def merge_duplicates(singular_type, items)
+            keeper = items.min_by { |item| oldest_first_key(item) }
+            newest = items.min_by { |item| newest_first_key(item) }
+            to_delete = items.reject { |item| item.equal?(keeper) }
+
+            puts "    Keeping: #{keeper.id} (created: #{keeper.created_at}, updated: #{keeper.updated_at})" if verbose?
+            return 0 unless copy_onto_keeper(singular_type, keeper, newest)
+
+            to_delete.each do |item|
+              if options[:dry_run]
+                puts Paint["    Would delete: #{item.id} (updated: #{item.updated_at})", :yellow] if verbose?
+              else
+                puts "    Deleting: #{item.id} (updated: #{item.updated_at})" if verbose?
+                response = firestore.delete(singular_type, item)
+                puts "      #{success_or_failure(response)}" if verbose > 1
+              end
+            end
+
+            to_delete.length
+          end
+
+          def copy_onto_keeper(singular_type, keeper, newest)
+            return true if newest.equal?(keeper)
+
+            copying = "data from #{newest.id} (updated: #{newest.updated_at}) onto #{keeper.id}"
+            if options[:dry_run]
+              puts Paint["    Would copy #{copying}", :yellow] if verbose?
+              return true
+            end
+
+            puts "    Copying #{copying}" if verbose?
+            if firestore.replace_data(singular_type, id: keeper.id, data: newest.data)
+              firestore.move_source(singular_type, from: newest.id, to: keeper.id)
+              return true
+            end
+
+            warn Paint["    Failed to copy #{newest.id} onto #{keeper.id} for #{keeper.author}/#{keeper.name}; " \
+                       "nothing deleted for this entry", :red]
+            false
+          end
+
+          # Earliest created_at, then updated_at, then id: deterministic even with missing timestamps
+          def oldest_first_key(item)
+            time = item.created_at || item.updated_at
+            [time ? time.to_r : Float::INFINITY, item.id.to_s]
+          end
+
+          # Latest updated_at, then created_at; ties go to the lowest id
+          def newest_first_key(item)
+            time = item.updated_at || item.created_at
+            [time ? -time.to_r : Float::INFINITY, item.id.to_s]
+          end
+
+          # Drops from +delete_array+ every doc that may only be missing because its source could not be read
+          # this run (#16): a doc mapped to a transiently failed URL, or, while any URL failed, a doc with no
+          # recorded source yet. A source that is gone (404/410) is not a transient failure, so authors still
+          # control removal, and docs from every other source are deleted as normal.
+          def protect_transient_sources(sync, delete_array)
+            failed_urls = sync.transient_failures
+            return delete_array if failed_urls.empty?
+
+            sources = sync.sources
+            kept, deletable = delete_array.partition do |list|
+              url = sources[list.id.to_s]
+              url.nil? || failed_urls.include?(url)
+            end
+            warn_kept(failed_urls, kept, sources) if kept.any?
+
+            deletable
+          end
+
+          def warn_kept(failed_urls, kept, sources)
+            warn Paint["WARNING: #{failed_urls.count} source(s) could not be read this run:", :yellow, :bright]
+            failed_urls.each { |url| warn Paint["  #{url}", :yellow] }
+            warn Paint["WARNING: Kept #{kept.count} outdated item(s) instead of deleting them:", :yellow, :bright]
+            kept.each do |list|
+              url = sources[list.id.to_s]
+              reason = url ? "its source could not be read (#{url})" : "no recorded source yet, and a source failed"
+              warn Paint["  #{list.author || 'NoOne'}/#{list.name || 'Unnamed'} (#{list.id}): #{reason}", :yellow]
             end
           end
 
@@ -123,6 +192,11 @@ module Icarus
 
             puts "Retrieving Info Array..." if verbose?
             info_array = sync.data(repositories, verbose: verbose > 1)&.map(&:download_url)&.compact
+
+            # The list update only ever adds URLs, so a repository we could not search keeps its entries (#16)
+            sync.transient_failures.each do |repo|
+              warn Paint["WARNING: Could not search #{repo} this run; its existing #{type} entries were kept", :yellow]
+            end
 
             raise Icarus::Mod::Tools::Error, "no .json files found for #{type}" unless info_array&.any?
 
@@ -192,8 +266,9 @@ module Icarus
             end
 
             puts "Created/Updated #{info_array.count} Items" if verbose?
+            sync.save_sources
 
-            delete_array = list_array.filter { |list| sync.find_info(list).nil? }
+            delete_array = protect_transient_sources(sync, list_array.filter { |list| sync.find_info(list).nil? })
 
             return unless delete_array.any?
 

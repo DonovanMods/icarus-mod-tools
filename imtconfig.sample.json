@@ -15,8 +15,10 @@
     "collections": {
       "meta": {
         "modinfo": "meta/modinfo",
+        "mod_sources": "meta/mod_sources",
         "repositories": "meta/repos",
         "status": "meta/status",
+        "tool_sources": "meta/tool_sources",
         "toolinfo": "meta/toolinfo"
       },
       "mods": "mods",

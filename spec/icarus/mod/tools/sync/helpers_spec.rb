@@ -45,10 +45,62 @@ RSpec.describe Icarus::Mod::Tools::Sync::Helpers do
       end
     end
 
+    context "when the classification of a failure matters" do
+      def failure_for(code, message = "Error")
+        response = instance_double(Net::HTTPResponse, code: code, message: message)
+        allow(http_client).to receive(:get).with(uri.path).and_return(response)
+        sync_helpers.retrieve_from_url(url)
+      rescue Icarus::Mod::Tools::Sync::RequestFailed => e
+        e
+      end
+
+      %w[404 410].each do |code|
+        it "treats HTTP #{code} as gone" do
+          error = failure_for(code)
+          expect(error).to be_a(Icarus::Mod::Tools::Sync::RequestGone)
+          expect(error).not_to be_transient
+        end
+      end
+
+      %w[500 502 503 403 429 301 400].each do |code|
+        it "treats HTTP #{code} as transient" do
+          error = failure_for(code)
+          expect(error).to be_a(Icarus::Mod::Tools::Sync::RequestTransient)
+          expect(error).to be_transient
+          expect(error.message).to include(url, code)
+        end
+      end
+
+      [
+        Net::OpenTimeout.new("execution expired"),
+        Net::ReadTimeout.new,
+        SocketError.new("getaddrinfo: Name or service not known"),
+        Errno::ECONNREFUSED.new,
+        Errno::ECONNRESET.new,
+        OpenSSL::SSL::SSLError.new("certificate verify failed"),
+        EOFError.new("end of file reached")
+      ].each do |exception|
+        it "wraps #{exception.class} as a transient failure naming the URL" do
+          allow(http_client).to receive(:get).with(uri.path).and_raise(exception)
+
+          expect { sync_helpers.retrieve_from_url(url) }
+            .to(raise_error(Icarus::Mod::Tools::Sync::RequestTransient) do |error|
+              expect(error.message).to include(url)
+              expect(error).to be_transient
+            end)
+        end
+      end
+    end
+
     context "when the URL is not a valid URI" do
       it "raises an Invalid URI error" do
         expect { sync_helpers.retrieve_from_url("foo") }
           .to raise_error(Icarus::Mod::Tools::Sync::RequestFailed, "Invalid URI: 'foo'")
+      end
+
+      it "is not transient (a malformed list entry cannot recover by retrying)" do
+        expect { sync_helpers.retrieve_from_url("foo") }
+          .to(raise_error(Icarus::Mod::Tools::Sync::RequestFailed) { |error| expect(error).not_to be_transient })
       end
     end
 

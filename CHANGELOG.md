@@ -4,6 +4,20 @@ All notable changes to this project will be documented in this file.
 
 ## History (reverse chronological order)
 
+### Unreleased
+
+- Fix sync deleting a source's mods and tools when its `modinfo.json`/`toolinfo.json` could not be read (#16)
+  - Authors still control removal: if a file is removed or renamed (HTTP 404 or 410), its entries are deleted as before
+  - A transient failure (timeout, network/DNS/TLS error, 5xx, 403/429 rate limit, any other unexpected status) or invalid JSON no longer deletes that source's entries; deletions are blocked per source, so other authors' removals still go through, and a warning lists every kept entry and why
+  - Sync records which file each mod and tool came from in new internal Firestore docs, `meta/mod_sources` and `meta/tool_sources` (the mods and tools docs are unchanged). An entry with no recorded source yet, such as on the first run after upgrading, is kept while any source fails transiently
+  - Invalid JSON is reported with a loud warning so an author mid-edit is not wiped
+- Fix a repository whose GitHub search fails transiently (rate limit, 5xx, network error) aborting `imt sync modinfo`/`toolinfo`; it is now skipped with a warning and its existing list entries are kept (#16)
+- Change `imt sync cleanup` to keep the oldest duplicate, whose ID clients already store, instead of the most recently updated one (#16)
+  - The most recently updated duplicate's data is copied onto the kept entry before the others are deleted
+  - `--dry-run` shows what would be kept, copied and deleted
+- Give new mods and tools deterministic document IDs derived from type, author and name, so an entry that is deleted and re-added keeps its ID (#16)
+  - Existing documents keep their current IDs
+
 ### v2.6.0 - 2026-03-04
 
 - Add `imt sync cleanup` command to remove duplicate entries from mods and tools collections
