@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## History (reverse chronological order)
 
-### Unreleased
+### v2.7.0 - 2026-10-30
 
 - Fix sync deleting a source's mods and tools when its `modinfo.json`/`toolinfo.json` could not be read (#16)
   - Authors still control removal: if a file is removed or renamed (HTTP 404 or 410), its entries are deleted as before
