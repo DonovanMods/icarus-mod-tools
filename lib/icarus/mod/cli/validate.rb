@@ -9,6 +9,9 @@ module Icarus
     module CLI
       # Sync CLI command definitions
       class Validate < SubcommandBase
+        # Warnings about loosely formed URLs and GitHub URLs we auto-fix; only shown with -v
+        NOISY_WARNING = /\AInvalid URL|Auto-fixed:/
+
         desc "modinfo", "Reads modinfo data from 'meta/modinfo/list' and Validates syntax of modfiles"
         def modinfo
           validate(:modinfo)
@@ -51,8 +54,9 @@ module Icarus
               print Paint[format("%s %-#{max_length}s", "Running validation steps on", info.uniq_name), :cyan, :bright] if verbose > 1
 
               info.validate
+              warnings = verbose > 1 ? info.warnings : info.warnings.grep_v(NOISY_WARNING)
 
-              unless info.errors? || info.warnings?
+              unless info.errors? || warnings.any?
                 puts Paint["SUCCESS", :green, :bright] if verbose > 1
                 next
               end
@@ -64,8 +68,8 @@ module Icarus
                 puts "\n" if verbose > 1
               end
 
-              puts Paint["WARNING", :yellow, :bright] if info.warnings.any? && verbose > 1
-              puts info.warnings.map { |warning| Paint["#{warning} in #{info.uniq_name}", :yellow] }.join("\n")
+              puts Paint["WARNING", :yellow, :bright] if warnings.any? && verbose > 1
+              puts warnings.map { |warning| Paint["#{warning} in #{info.uniq_name}", :yellow] }.join("\n")
               puts "\n" if verbose > 1
             end
             exit exit_code

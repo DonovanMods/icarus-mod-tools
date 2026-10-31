@@ -76,6 +76,50 @@ RSpec.describe Icarus::Mod::CLI::Validate do
       end
     end
 
+    context "when entries only have URL or auto-fix warnings" do
+      let(:noisy_modinfo) do
+        Icarus::Mod::Tools::Modinfo.new(
+          modinfo_data.merge(imageURL: "https://github.com/user/repo/blob/main/image.png",
+                             readmeURL: "https://example.com/read me.md")
+        )
+      end
+
+      before do
+        allow(validator_double).to receive(:array).and_return([noisy_modinfo])
+      end
+
+      it "hides them without -v" do
+        expect { validate_command.modinfo }.to output("Validating Entries...\n").to_stdout.and raise_error(SystemExit) { |e|
+          expect(e.status).to eq(0)
+        }
+      end
+
+      context "with -v" do
+        let(:options) { { verbose: [true, true] } }
+
+        it "shows them" do
+          expect { validate_command.modinfo }.to output(/Auto-fixed.*Invalid URL Readmeurl/m).to_stdout.and raise_error(SystemExit)
+        end
+      end
+    end
+
+    context "when entries have URL warnings alongside other warnings" do
+      let(:mixed_modinfo) do
+        Icarus::Mod::Tools::Modinfo.new(
+          modinfo_data.merge(version: "not-a-version", readmeURL: "https://example.com/read me.md")
+        )
+      end
+
+      before do
+        allow(validator_double).to receive(:array).and_return([mixed_modinfo])
+      end
+
+      it "shows only the other warnings without -v" do
+        shown = a_string_including("should be a version string") & satisfy { |out| !out.include?("Invalid URL") }
+        expect { validate_command.modinfo }.to output(shown).to_stdout.and raise_error(SystemExit)
+      end
+    end
+
     context "with verbose > 1" do
       let(:options) { { verbose: [true, true] } }
 

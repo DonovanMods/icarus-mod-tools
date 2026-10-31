@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## History (reverse chronological order)
 
+### [Unreleased]
+
+- `imt validate modinfo`/`toolinfo` now hides "Invalid URL" and GitHub URL auto-fix warnings unless `-v` is given; other warnings and all errors still show
+
 ### v3.2.1 - 2026-10-31
 
 - Fix `imt add repos owner/repo` storing a bare `owner/repo`, which stage 1 of sync never searched (it only looked at entries containing "github"); it now stores the canonical `https://github.com/owner/repo` for any GitHub form, refuses non-GitHub repositories, and does nothing when the repository is already listed under any spelling
