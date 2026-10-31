@@ -229,7 +229,8 @@ module Icarus
             info_array = sync.info_array
 
             puts "Retrieving List Data..." if verbose?
-            list_array = sync.send(type)
+            # A snapshot: creating a doc appends it to the cached collection, which would dilute the delete guard
+            list_array = sync.send(type).dup
 
             return if options[:check]
 

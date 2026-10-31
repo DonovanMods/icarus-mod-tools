@@ -282,6 +282,27 @@ RSpec.describe Icarus::Mod::CLI::Sync do
       end
     end
 
+    context "when docs created earlier in the run would dilute the share being deleted" do
+      let(:collection) do
+        Array.new(5) { |i| Icarus::Mod::Tools::Modinfo.new({ name: "Stale#{i}", author: "Someone", description: "x" }, id: "stale-#{i}") } +
+          Array.new(14) { |i| Icarus::Mod::Tools::Modinfo.new({ name: "Live#{i}", author: "Someone", description: "x" }, id: "live-#{i}") }
+      end
+
+      before do
+        # Like the real cache: creating a doc appends it to the collection the sync reads
+        allow(mods_sync_double).to receive(:mods).and_return(collection)
+        allow(mods_sync_double).to receive(:update) { |list| collection << list }
+        allow(mods_sync_double).to receive(:find_info) { |list| list.name.start_with?("Stale") ? nil : list }
+      end
+
+      it "measures against the collection as it was before this run" do
+        expect { sync_command.mods }
+          .to raise_error(SystemExit)
+          .and output(/Refusing to delete 5 of 19 mods/).to_stderr
+          .and output.to_stdout
+      end
+    end
+
     context "when no source could be read at all" do
       let(:stale_mod) { Icarus::Mod::Tools::Modinfo.new({ name: "Stale", author: "Someone", description: "Gone" }, id: "stale-id") }
 

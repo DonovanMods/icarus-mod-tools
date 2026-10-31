@@ -163,6 +163,11 @@ RSpec.describe Icarus::Mod::Tools::Sync::Mods do
           expect(modsync.transient_failures).to eq([odd_url])
         end
       end
+
+      it "skips an entry whose name is not a string instead of aborting the sync" do
+        stub_fetch(odd_url).and_return({ mods: [{ name: 123, author: "A", description: "x" }, { name: "Ok", author: "A", description: "x" }] })
+        expect(modsync.info_array.map(&:name)).to eq(["Ok"])
+      end
     end
   end
 

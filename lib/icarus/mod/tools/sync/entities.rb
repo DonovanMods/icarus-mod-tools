@@ -90,7 +90,7 @@ module Icarus
             raise JSON::ParserError, "'#{plural}' entries must be objects" unless entries.all?(Hash)
 
             entries.filter_map do |data|
-              next unless /[a-z0-9]+/i.match?(data[:name])
+              next unless data[:name].is_a?(String) && /[a-z0-9]+/i.match?(data[:name])
 
               self.class::ENTITY.new(data).tap { |entry| entry.source_url = url }
             end
