@@ -29,6 +29,18 @@ RSpec.describe Icarus::Mod::CLI::SubcommandBase do
         expect(command.verbose).to eq(3)
       end
     end
+
+    context "with --no-verbose (Thor freezes the parsed options)" do
+      subject(:command) { test_class.new([], ["--no-verbose"]) }
+
+      it "returns 0" do
+        expect(command.verbose).to eq(0)
+      end
+
+      it "makes verbose? false" do
+        expect(command.verbose?).to be false
+      end
+    end
   end
 
   describe "#verbose?" do

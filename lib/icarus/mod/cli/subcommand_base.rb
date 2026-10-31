@@ -12,18 +12,14 @@ module Icarus
                      desc: "Increase verbosity. May be repeated for even more verbosity."
 
         no_commands do
-          def check_false
-            options[:verbose] = [] if options[:verbose].include?(false)
-          end
-
+          # --no-verbose appends false; Thor freezes options, so derive the level instead of rewriting it
           def verbose
-            check_false
-            options[:verbose]&.count || 0
+            flags = options[:verbose] || []
+            flags.include?(false) ? 0 : flags.count
           end
 
           def verbose?
-            check_false
-            options[:verbose]&.count&.positive?
+            verbose.positive?
           end
         end
 
