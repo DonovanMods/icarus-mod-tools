@@ -1,7 +1,7 @@
 PATH
   remote: .
   specs:
-    Icarus-Mod-Tools (3.1.0)
+    Icarus-Mod-Tools (3.2.0)
       google-cloud-firestore (~> 3.3)
       octokit (~> 10.0)
       ostruct (~> 0.6)

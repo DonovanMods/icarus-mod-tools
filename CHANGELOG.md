@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## History (reverse chronological order)
 
-### Unreleased
+### v3.2.0 - 2026-10-30
 
 - Add `imt validate repo OWNER/REPO [--json]`, a read-only pre-check for a repo before it is added to `meta/repos` (repo state, info files, entry validation and link checks; exits 0/1/2)
   - Link checks never request loopback, private, link-local or other non-public addresses (checked on every redirect, and the request goes to the checked address), since the links come from the repo being vetted
