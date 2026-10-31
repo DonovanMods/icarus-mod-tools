@@ -268,19 +268,23 @@ module Icarus
               puts success_or_failure(response) if verbose > 1
             end
 
+            unless options[:dry_run]
+              puts "Created/Updated #{info_array.count} Items" if verbose?
+              sync.save_sources
+            end
+
+            delete_array = protect_transient_sources(sync, list_array.filter { |list| sync.find_info(list).nil? })
+
             if options[:dry_run]
+              preview_deletions(type, delete_array, list_array, info_array)
               puts Paint["Dry run; no changes will be made", :white] if verbose?
               return
             end
 
-            puts "Created/Updated #{info_array.count} Items" if verbose?
-            sync.save_sources
-
-            delete_array = protect_transient_sources(sync, list_array.filter { |list| sync.find_info(list).nil? })
-
             return unless delete_array.any?
 
-            refuse_mass_delete(type, delete_array, list_array, info_array)
+            raise Icarus::Mod::Tools::Error, mass_delete_message("Refusing", type, delete_array, list_array) if
+              mass_delete?(delete_array, list_array, info_array)
 
             puts "Deleting outdated items..." if verbose?
             delete_array.each do |list|
@@ -301,16 +305,28 @@ module Icarus
 
           # A wave of 404s (a GitHub outage, a mass rename) looks like every author removing their file, so stage 2
           # will not delete more than MASS_DELETE_RATIO of a collection, or empty it, unless run with --force
-          def refuse_mass_delete(type, delete_array, list_array, info_array)
-            return if options[:force]
+          def mass_delete?(delete_array, list_array, info_array)
+            return false if options[:force] || delete_array.empty?
 
             emptying = info_array.empty? && delete_array.size >= list_array.size
             too_many = delete_array.size >= MASS_DELETE_MIN && delete_array.size > list_array.size * MASS_DELETE_RATIO
-            return unless emptying || too_many
+            emptying || too_many
+          end
 
-            raise Icarus::Mod::Tools::Error,
-                  Paint["Refusing to delete #{delete_array.size} of #{list_array.size} #{type}; " \
-                        "check the sources, then rerun with --force if this is intended", :red, :bright]
+          def mass_delete_message(verb, type, delete_array, list_array)
+            Paint["#{verb} to delete #{delete_array.size} of #{list_array.size} #{type}; " \
+                  "check the sources, then rerun with --force if this is intended", :red, :bright]
+          end
+
+          # What a real run would delete, and whether the mass-delete brake would stop it
+          def preview_deletions(type, delete_array, list_array, info_array)
+            return unless verbose?
+
+            puts "Would delete #{delete_array.count} outdated item(s)#{":" if delete_array.any?}"
+            delete_array.each { |list| puts Paint["  #{list.author || "NoOne"}/#{list.name || "Unnamed"} (#{list.id})", :yellow] }
+            return unless mass_delete?(delete_array, list_array, info_array)
+
+            warn mass_delete_message("Would refuse", type, delete_array, list_array)
           end
         end
       end

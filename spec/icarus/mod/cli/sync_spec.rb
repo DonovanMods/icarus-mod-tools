@@ -272,6 +272,17 @@ RSpec.describe Icarus::Mod::CLI::Sync do
         expect(mods_sync_double).not_to have_received(:delete)
       end
 
+      context "with --dry-run" do
+        let(:options) { { verbose: [true], dry_run: true, check: false } }
+
+        it "reports that a real run would refuse, without exiting or deleting" do
+          expect { sync_command.mods }
+            .to output(/Would refuse to delete 6 of 8 mods.*--force/m).to_stderr
+            .and output(/Would delete 6 outdated item/).to_stdout
+          expect(mods_sync_double).not_to have_received(:delete)
+        end
+      end
+
       context "with --force" do
         let(:options) { { verbose: [true], dry_run: false, check: false, force: true } }
 
@@ -345,6 +356,10 @@ RSpec.describe Icarus::Mod::CLI::Sync do
           expect(mods_sync_double).not_to have_received(:update)
           expect(mods_sync_double).not_to have_received(:delete)
           expect(mods_sync_double).not_to have_received(:save_sources)
+        end
+
+        it "lists what a real run would delete" do
+          expect { sync_command.mods }.to output(%r{Would delete 1 outdated item.*Someone/Stale \(stale-id\)}m).to_stdout
         end
       end
 
