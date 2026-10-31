@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## History (reverse chronological order)
 
+### Unreleased
+
+- Add `imt validate repo OWNER/REPO [--json]`, a read-only pre-check for a repo before it is added to `meta/repos` (repo state, info files, entry validation and link checks; exits 0/1/2)
+
 ### v3.1.0 - 2026-10-30
 
 - `imt sync mods`/`tools --dry-run` now lists the entries a real run would delete, and warns when the mass-delete brake would refuse (a real run would exit 1 without `--force`)
