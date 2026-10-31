@@ -22,7 +22,6 @@ RSpec.describe Icarus::Mod::Tools::Sync::ModinfoList do
     allow(github_double).to receive_messages(find: modinfo_url, "repository=": true)
     allow(Icarus::Mod::Github).to receive(:new).and_return(github_double)
 
-    # rubocop:disable RSpec/SubjectStub -- we're stubbing the helper method which is tested elsewhere
     allow(modinfo_sync).to receive(:retrieve_from_url).with(url).and_return(modinfo_data)
     # rubocop:enable RSpec/SubjectStub
   end

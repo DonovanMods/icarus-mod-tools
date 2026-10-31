@@ -29,7 +29,7 @@ module Icarus
               entries_from(url)
             rescue Icarus::Mod::Tools::Sync::RequestFailed => e
               @transient_failures << url if e.transient?
-              warn "Skipped; Failed to retrieve #{url}#{' (transient; its existing entries are kept)' if e.transient?}"
+              warn "Skipped; Failed to retrieve #{url}#{" (transient; its existing entries are kept)" if e.transient?}"
               next
             rescue JSON::ParserError => e
               @transient_failures << url

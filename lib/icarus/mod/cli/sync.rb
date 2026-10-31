@@ -94,8 +94,8 @@ module Icarus
 
             if options[:dry_run]
               puts Paint["Dry run; no changes made. Would have deleted #{deleted_count} duplicate #{type}.", :yellow] if verbose?
-            else
-              puts "Deleted #{deleted_count} duplicate #{type}." if verbose?
+            elsif verbose?
+              puts "Deleted #{deleted_count} duplicate #{type}."
             end
           end
 
@@ -179,7 +179,7 @@ module Icarus
             kept.each do |list|
               url = sources[list.id.to_s]
               reason = url ? "its source could not be read (#{url})" : "no recorded source yet, and a source failed"
-              warn Paint["  #{list.author || 'NoOne'}/#{list.name || 'Unnamed'} (#{list.id}): #{reason}", :yellow]
+              warn Paint["  #{list.author || "NoOne"}/#{list.name || "Unnamed"} (#{list.id}): #{reason}", :yellow]
             end
           end
 
@@ -256,7 +256,7 @@ module Icarus
 
               if verbose > 1
                 print format("#{verb} %-<name>60s",
-                             name: "'#{list.author || 'NoOne'}/#{list.name || 'Unnamed'}'")
+                             name: "'#{list.author || "NoOne"}/#{list.name || "Unnamed"}'")
               end
 
               if options[:dry_run]
@@ -284,7 +284,7 @@ module Icarus
 
             puts "Deleting outdated items..." if verbose?
             delete_array.each do |list|
-              print "Deleting '#{list.author || 'NoOne'}/#{list.name || 'Unnamed'}'#{' ' * 20}" if verbose > 1
+              print "Deleting '#{list.author || "NoOne"}/#{list.name || "Unnamed"}'#{" " * 20}" if verbose > 1
               response = sync.delete(list)
               puts success_or_failure(response) if verbose > 1
             end

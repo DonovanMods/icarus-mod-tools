@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "tools/sync/helpers"
 require "uri"
 require "json"

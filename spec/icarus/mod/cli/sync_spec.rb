@@ -318,6 +318,7 @@ RSpec.describe Icarus::Mod::CLI::Sync do
         expect(mods_sync_double).not_to have_received(:delete)
       end
     end
+
     context "when an existing mod no longer appears in any modinfo file" do
       let(:stale_mod) { Icarus::Mod::Tools::Modinfo.new({ name: "Stale", author: "Someone", description: "Gone" }, id: "stale-id") }
 
@@ -374,7 +375,7 @@ RSpec.describe Icarus::Mod::CLI::Sync do
 
         it "warns which docs were kept and why" do
           expect { sync_command.mods }.to output(
-            /#{Regexp.escape(u1)}.*One\/FromU1.*source could not be read.*Someone\/Stale.*no recorded source/m
+            %r{#{Regexp.escape(u1)}.*One/FromU1.*source could not be read.*Someone/Stale.*no recorded source}m
           ).to_stderr.and output.to_stdout
         end
 

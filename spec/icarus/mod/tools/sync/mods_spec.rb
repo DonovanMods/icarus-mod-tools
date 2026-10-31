@@ -56,8 +56,8 @@ RSpec.describe Icarus::Mod::Tools::Sync::Mods do
         output = stderr_output.string
 
         expect(output).to match(/Skipped; Invalid JSON in #{Regexp.escape(invalid_url)}: invalid escape character/)
-        expect(output).not_to match(/JSON::Ext::Parser/)
-        expect(output).not_to match(/lib\/ruby\/gems/)
+        expect(output).not_to include("JSON::Ext::Parser")
+        expect(output).not_to include("lib/ruby/gems")
       end
 
       it "skips the invalid URL and continues processing" do
@@ -85,6 +85,7 @@ RSpec.describe Icarus::Mod::Tools::Sync::Mods do
         expect(result.first.name).to eq("Dupe Mod")
       end
     end
+
     context "when some modinfo URLs fail" do
       def stub_fetch(url)
         allow_any_instance_of(Icarus::Mod::Tools::Sync::Helpers).to receive(:retrieve_from_url).with(url)
@@ -165,7 +166,8 @@ RSpec.describe Icarus::Mod::Tools::Sync::Mods do
       end
 
       it "skips an entry whose name is not a string instead of aborting the sync" do
-        stub_fetch(odd_url).and_return({ mods: [{ name: 123, author: "A", description: "x" }, { name: "Ok", author: "A", description: "x" }] })
+        stub_fetch(odd_url).and_return({ mods: [{ name: 123, author: "A", description: "x" },
+                                                { name: "Ok", author: "A", description: "x" }] })
         expect(modsync.info_array.map(&:name)).to eq(["Ok"])
       end
     end

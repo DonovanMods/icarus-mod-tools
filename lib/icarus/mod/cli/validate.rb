@@ -25,7 +25,6 @@ module Icarus
             puts "Validating Entries..." if verbose?
             max_length = (validator.array.map { |info| info.uniq_name.length }.max || 0) + 1
 
-            # rubocop:disable Lint/FormatParameterMismatch
             validator.array.each do |info|
               print Paint[format("%s %-#{max_length}s", "Running validation steps on", info.uniq_name), :cyan, :bright] if verbose > 1
 
@@ -47,8 +46,6 @@ module Icarus
               puts info.warnings.map { |warning| Paint["#{warning} in #{info.uniq_name}", :yellow] }.join("\n")
               puts "\n" if verbose > 1
             end
-            # rubocop:enable Lint/FormatParameterMismatch
-
             exit exit_code
           end
         end

@@ -12,11 +12,11 @@ RSpec.describe Icarus::Mod::CLI::Validate do
   let(:valid_modinfo) { Icarus::Mod::Tools::Modinfo.new(modinfo_data) }
   let(:invalid_modinfo) do
     Icarus::Mod::Tools::Modinfo.new({
-      name: "",
-      author: "",
-      description: "",
-      version: "1.0"
-    })
+                                      name: "",
+                                      author: "",
+                                      description: "",
+                                      version: "1.0"
+                                    })
   end
   let(:warning_modinfo) do
     Icarus::Mod::Tools::Modinfo.new(
@@ -52,7 +52,9 @@ RSpec.describe Icarus::Mod::CLI::Validate do
       end
 
       it "exits with code 1" do
-        expect { validate_command.modinfo }.to output(/Name cannot be blank/).to_stdout.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+        expect { validate_command.modinfo }.to output(/Name cannot be blank/).to_stdout.and raise_error(SystemExit) { |e|
+          expect(e.status).to eq(1)
+        }
       end
 
       it "outputs error messages" do
@@ -134,7 +136,6 @@ RSpec.describe Icarus::Mod::CLI::Validate do
         expect { validate_command.modinfo }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
       end
     end
-
 
     context "with mixed valid and invalid entries" do
       before do

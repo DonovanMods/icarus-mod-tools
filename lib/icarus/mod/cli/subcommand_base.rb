@@ -8,8 +8,8 @@ module Icarus
       # Base class for all subcommands
       class SubcommandBase < Base
         class_option :verbose,
-          aliases: "-v", type: :boolean, repeatable: true, default: [true],
-          desc: "Increase verbosity. May be repeated for even more verbosity."
+                     aliases: "-v", type: :boolean, repeatable: true, default: [true],
+                     desc: "Increase verbosity. May be repeated for even more verbosity."
 
         no_commands do
           def check_false

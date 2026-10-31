@@ -29,7 +29,7 @@ RSpec.describe Icarus::Mod::Firestore do
 
   # FieldValue sentinels do not compare equal, so match them by type and value
   def field_value(type, *values)
-    satisfy("FieldValue.#{type}(#{values.join(', ')})") do |value|
+    satisfy("FieldValue.#{type}(#{values.join(", ")})") do |value|
       value.is_a?(Google::Cloud::Firestore::FieldValue) && value.type == type && (values.empty? || value.value == values)
     end
   end
@@ -119,10 +119,10 @@ RSpec.describe Icarus::Mod::Firestore do
     end
     let(:doc_snapshot) do
       double("DocumentSnapshot",
-        data: doc_data,
-        document_id: "test-doc-id",
-        create_time: Time.now,
-        update_time: Time.now)
+             data: doc_data,
+             document_id: "test-doc-id",
+             create_time: Time.now,
+             update_time: Time.now)
     end
 
     before do
@@ -151,10 +151,10 @@ RSpec.describe Icarus::Mod::Firestore do
     end
     let(:doc_snapshot) do
       double("DocumentSnapshot",
-        data: doc_data,
-        document_id: "test-tool-id",
-        create_time: Time.now,
-        update_time: Time.now)
+             data: doc_data,
+             document_id: "test-tool-id",
+             create_time: Time.now,
+             update_time: Time.now)
     end
 
     before do
@@ -250,11 +250,11 @@ RSpec.describe Icarus::Mod::Firestore do
     context "with :mod type" do
       let(:modinfo) do
         Icarus::Mod::Tools::Modinfo.new({
-          name: "Test Mod",
-          author: "Test Author",
-          version: "1.0",
-          description: "Test"
-        })
+                                          name: "Test Mod",
+                                          author: "Test Author",
+                                          version: "1.0",
+                                          description: "Test"
+                                        })
       end
 
       context "when mod does not exist" do
@@ -387,13 +387,13 @@ RSpec.describe Icarus::Mod::Firestore do
     context "with :tool type" do
       let(:toolinfo) do
         Icarus::Mod::Tools::Toolinfo.new({
-          name: "Test Tool",
-          author: "Test Author",
-          version: "1.0",
-          description: "Test",
-          fileType: "zip",
-          fileURL: "https://example.com/tool.zip"
-        })
+                                           name: "Test Tool",
+                                           author: "Test Author",
+                                           version: "1.0",
+                                           description: "Test",
+                                           fileType: "zip",
+                                           fileURL: "https://example.com/tool.zip"
+                                         })
       end
 
       before do
@@ -403,7 +403,7 @@ RSpec.describe Icarus::Mod::Firestore do
       it "creates a new tool document at the tools stable id" do
         firestore.update(:tool, toolinfo)
         expect(collection_double).not_to have_received(:add)
-        expect(client_double).to have_received(:doc).with("tools/#{firestore.stable_id(:tools, author: 'Test Author', name: 'Test Tool')}")
+        expect(client_double).to have_received(:doc).with("tools/#{firestore.stable_id(:tools, author: "Test Author", name: "Test Tool")}")
       end
     end
 
@@ -436,7 +436,7 @@ RSpec.describe Icarus::Mod::Firestore do
     describe "#sources" do
       it "reads the doc ID to source URL map with string keys" do
         expect(firestore.sources(:mods)).to eq("mod-a" => "https://example.com/u1/modinfo.json",
-                                                "mod-b" => "https://example.com/u2/modinfo.json")
+                                               "mod-b" => "https://example.com/u2/modinfo.json")
       end
 
       it "accepts the singular type" do

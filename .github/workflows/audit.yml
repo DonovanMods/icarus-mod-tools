@@ -16,11 +16,17 @@ jobs:
           - "4.0"
 
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
     - name: Set up Ruby
-      uses: ruby/setup-ruby@v1
+      uses: ruby/setup-ruby@de492cf36cbab201753d720ce4f4e336cd688c94 # v1.336.0
       with:
         ruby-version: ${{ matrix.ruby }}
         bundler-cache: true
-    - name: Run the default task
-      run: bundle exec rake
+    - name: Run the specs
+      run: bundle exec rake spec
+    - name: Lint
+      run: bundle exec rubocop
+    - name: Check dependencies for known vulnerabilities
+      run: |
+        gem install bundler-audit --no-document
+        bundle-audit check --update

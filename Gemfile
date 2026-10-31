@@ -13,6 +13,6 @@ group :development do
   gem "guard-rspec", "~> 4.7"
   gem "pry", "~> 0.14.1"
   gem "rspec", "~> 3.12"
-  gem "rubocop", "~> 1.41"
-  gem "rubocop-rspec", "~> 2.16", require: false
+  gem "rubocop", "~> 1.92"
+  gem "rubocop-rspec", "~> 3.10", require: false
 end

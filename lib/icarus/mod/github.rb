@@ -34,11 +34,11 @@ module Icarus
       # Results are cached per [path, recursive]; the top-level listing also lives in #resources
       def all_files(path: nil, cache: true, recursive: false, &block)
         key = [path, recursive]
-        cached = (key == [nil, false]) ? @resources : @cache[key]
+        cached = key == [nil, false] ? @resources : @cache[key]
 
         # If we've already been called with these arguments for this repository, use the cached resources
         files = (cached if cache && cached&.any?) || fetch_files(path, recursive).tap do |found|
-          (key == [nil, false]) ? @resources = found : @cache[key] = found
+          key == [nil, false] ? @resources = found : @cache[key] = found
         end
 
         if block
