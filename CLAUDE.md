@@ -148,7 +148,7 @@ Ruby 3.4+ with newer OpenSSL may fail CRL checking. The codebase handles this in
 
 - **Firestore credentials**: Must be the full JSON object in config, not a file path
 - **GitHub repo format**: `owner/repo` format (URL prefixes are stripped automatically)
-- **Ruby version**: 3.1+ required for pattern matching and modern features
+- **Ruby version**: 4.0+ required
 - **Platform**: WSL2/Linux recommended; not tested on Windows
 - **Require paths**: The gemspec sets `require_paths` to both `lib` and `lib/icarus/mod`, so files use relative requires like `require "cli/base"` instead of `require_relative`
 - **Verbosity**: `-v` and `-vv` flags control output detail in subcommands

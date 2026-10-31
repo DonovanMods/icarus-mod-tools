@@ -91,7 +91,7 @@ bin/console        # Interactive console
 
 - Firestore credentials must be full JSON object, not file path
 - GitHub repo format: `owner/repo` (strips URL prefixes automatically)
-- Ruby 3.1+ required for pattern matching and other modern features
+- Ruby 4.0+ required
 - WSL2/Linux recommended over Windows for reliability
 - Verbose flags (`-v`, `-vv`) control output detail levels
 - **SSL Certificate Issues**: Ruby 3.4+ with newer OpenSSL may fail certificate verification for CRL checking. Configure custom SSL verification in HTTP helpers to handle certificate validation errors

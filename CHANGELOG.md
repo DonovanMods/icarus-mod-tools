@@ -4,6 +4,12 @@ All notable changes to this project will be documented in this file.
 
 ## History (reverse chronological order)
 
+### Unreleased
+
+- Require Ruby 4.0 or greater (was 3.1)
+  - Fixes `imt sync` crashing during Firestore authentication with `wrong number of arguments (given 2, expected 1)` on Ruby 3.1 once `json` 3.x is installed; `multi_json` releases that support `json` 3.x (1.21.2+) need Ruby 3.2 or newer
+- Update `multi_json` to 1.21.2
+
 ### v2.7.0 - 2026-10-30
 
 - Fix sync deleting a source's mods and tools when its `modinfo.json`/`toolinfo.json` could not be read (#16)

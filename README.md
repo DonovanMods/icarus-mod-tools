@@ -8,7 +8,7 @@ To use this app, you'll need to obtain the following:
 
 - A Github ACCESS_TOKEN (doesn't need access to any repos, this is used purely to make API calls)
 - A Google Cloud Platform credentials `keyfile.json`
-- Ruby 3.1 (or greater)
+- Ruby 4.0 (or greater)
 
 If you aren't sure how to obtain these credentials, please see:
 
