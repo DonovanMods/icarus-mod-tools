@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## History (reverse chronological order)
 
-### Unreleased
+### v3.1.0 - 2026-10-30
 
 - `imt sync mods`/`tools --dry-run` now lists the entries a real run would delete, and warns when the mass-delete brake would refuse (a real run would exit 1 without `--force`)
 - Document `imt add --dry-run` in the README
