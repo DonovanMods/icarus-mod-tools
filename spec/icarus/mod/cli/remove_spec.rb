@@ -275,6 +275,7 @@ RSpec.describe Icarus::Mod::CLI::Remove do
       allow(firestore_double).to receive(:toolinfo).and_return([toolinfo_url])
       allow(firestore_double).to receive(:mods).and_return([mod_double])
       allow(firestore_double).to receive(:tools).and_return([tool_double])
+      allow(firestore_double).to receive(:sources).and_return({})
     end
 
     context "with cascade enabled" do
@@ -299,10 +300,10 @@ RSpec.describe Icarus::Mod::CLI::Remove do
       end
 
       it "removes repository and all associated entries" do
-        expect(firestore_double).to receive(:delete).with(:modinfo, modinfo_url).ordered
         expect(firestore_double).to receive(:delete).with(:mod, mod_double).ordered
-        expect(firestore_double).to receive(:delete).with(:toolinfo, toolinfo_url).ordered
+        expect(firestore_double).to receive(:delete).with(:modinfo, modinfo_url).ordered
         expect(firestore_double).to receive(:delete).with(:tool, tool_double).ordered
+        expect(firestore_double).to receive(:delete).with(:toolinfo, toolinfo_url).ordered
         expect(firestore_double).to receive(:delete).with(:repositories, repo).ordered
 
         expect do
@@ -342,21 +343,22 @@ RSpec.describe Icarus::Mod::CLI::Remove do
         allow(firestore_double).to receive(:delete).and_return(true)
       end
 
-      it "warns about the failure but continues" do
+      it "warns, keeps the repository and exits 1" do
+        expect(firestore_double).not_to receive(:delete).with(:repositories, anything)
+
         expect do
           cmd_with_cascade.repos(repo)
-        end.to output(/Warning: Could not fetch/).to_stderr
-          .and output(/Successfully removed repository and all associated entries/).to_stdout
+        end.to output(/Warning: Could not fetch/).to_stderr.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
       end
 
-      it "warns and continues when the helper reports the network error as a RequestTransient (#16)" do
+      it "keeps the repository when the helper reports a RequestTransient (#16)" do
         transient = Icarus::Mod::Tools::Sync::RequestTransient.new("HTTP Request failed (SocketError): Network error")
         allow_any_instance_of(Icarus::Mod::Tools::Sync::Helpers).to receive(:retrieve_from_url).and_raise(transient)
+        expect(firestore_double).not_to receive(:delete).with(:repositories, anything)
 
         expect do
           cmd_with_cascade.repos(repo)
-        end.to output(/Warning: Could not fetch/).to_stderr
-          .and output(/Successfully removed repository and all associated entries/).to_stdout
+        end.to output(/Warning: Could not fetch/).to_stderr.and raise_error(SystemExit)
       end
     end
 
@@ -442,10 +444,11 @@ RSpec.describe Icarus::Mod::CLI::Remove do
         allow_any_instance_of(Icarus::Mod::Tools::Sync::Helpers).to receive(:retrieve_from_url).with(modinfo_url).and_raise(SocketError.new("Connection failed"))
         allow(firestore_double).to receive(:delete).and_return(true)
 
+        expect(firestore_double).not_to receive(:delete).with(:repositories, anything)
+
         expect do
           cmd_with_cascade.repos(repo)
-        end.to output(/Warning: Failed to fetch 1 URL\(s\)/).to_stderr
-          .and output(/Successfully removed repository/).to_stdout
+        end.to output(/Warning: Failed to fetch 1 URL\(s\)/).to_stderr.and raise_error(SystemExit)
       end
 
       it "tracks and reports delete failures" do
@@ -461,7 +464,103 @@ RSpec.describe Icarus::Mod::CLI::Remove do
 
         expect do
           cmd_with_cascade.repos(repo)
-        end.to output(/Warning: 1 delete operation/).to_stderr
+        end.to output(/Warning: 1 delete operation/).to_stderr.and raise_error(SystemExit)
+      end
+
+      it "keeps the repository and exits 1 when an entity delete fails" do
+        allow(Icarus::Mod::Firestore).to receive(:new).and_return(firestore_double)
+        allow(firestore_double).to receive_messages(repositories: [repo], modinfo: [modinfo_url], toolinfo: [],
+                                                    mods: [mod_double], tools: [])
+        allow_any_instance_of(Icarus::Mod::Tools::Sync::Helpers).to receive(:retrieve_from_url)
+          .and_return({ mods: [{ name: "Test Mod", author: "Test Author" }] })
+        allow(firestore_double).to receive(:delete).with(:mod, mod_double).and_return(false)
+
+        # Neither the modinfo URL nor the repo may go, or nothing is left to retry from
+        expect(firestore_double).not_to receive(:delete).with(:modinfo, anything)
+        expect(firestore_double).not_to receive(:delete).with(:repositories, anything)
+
+        expect do
+          cmd_with_cascade.repos(repo)
+        end.to output(/Warning: 1 delete operation/).to_stderr.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+      end
+    end
+
+    context "URL anchoring and normalisation" do
+      let(:cmd_with_cascade) { described_class.new([], { cascade: true }, {}) }
+
+      before do
+        allow(firestore_double).to receive_messages(toolinfo: [], mods: [], tools: [])
+        allow(firestore_double).to receive(:delete).and_return(true)
+      end
+
+      it "does not match a subdirectory of someone else's repo" do
+        allow(firestore_double).to receive_messages(repositories: ["foo/bar"],
+                                                    modinfo: ["https://raw.githubusercontent.com/x/y/main/foo/bar/modinfo.json"])
+
+        expect(firestore_double).not_to receive(:delete).with(:modinfo, anything)
+        expect(firestore_double).to receive(:delete).with(:repositories, "foo/bar")
+
+        cmd_with_cascade.repos("foo/bar")
+      end
+
+      it "matches owner/repo case-insensitively" do
+        url = "https://raw.githubusercontent.com/Owner/Repo/main/modinfo.json"
+        allow(firestore_double).to receive_messages(repositories: ["owner/repo"], modinfo: [url])
+        allow_any_instance_of(Icarus::Mod::Tools::Sync::Helpers).to receive(:retrieve_from_url).and_return({ mods: [] })
+
+        expect(firestore_double).to receive(:delete).with(:modinfo, url)
+        expect(firestore_double).to receive(:delete).with(:repositories, "owner/repo")
+
+        cmd_with_cascade.repos("owner/repo")
+      end
+
+      it "cascades for a repo stored as a full URL, deleting the stored string" do
+        stored = "https://github.com/owner/repo"
+        allow(firestore_double).to receive_messages(repositories: [stored], modinfo: [modinfo_url])
+        allow_any_instance_of(Icarus::Mod::Tools::Sync::Helpers).to receive(:retrieve_from_url).and_return({ mods: [] })
+
+        expect(firestore_double).to receive(:delete).with(:modinfo, modinfo_url)
+        expect(firestore_double).to receive(:delete).with(:repositories, stored)
+
+        cmd_with_cascade.repos(stored)
+      end
+    end
+
+    context "entity ownership via the source map (#16)" do
+      let(:cmd_with_cascade) { described_class.new([], { cascade: true }, {}) }
+      let(:mine) { double("Mod", id: "m1", name: "Same", author: "Auth") }
+      let(:fork) { double("Mod", id: "m2", name: "Same", author: "Auth") }
+      let(:unmapped) { double("Mod", id: "m3", name: "Same", author: "Auth") }
+      let(:fork_url) { "https://raw.githubusercontent.com/fork/repo/main/modinfo.json" }
+
+      before do
+        allow(firestore_double).to receive_messages(repositories: [repo], modinfo: [modinfo_url], toolinfo: [],
+                                                    tools: [])
+        allow(firestore_double).to receive(:delete).and_return(true)
+        allow(firestore_double).to receive(:sources).with(:tools).and_return({})
+        allow_any_instance_of(Icarus::Mod::Tools::Sync::Helpers).to receive(:retrieve_from_url)
+          .and_return({ mods: [{ name: "Same", author: "Auth" }] })
+      end
+
+      it "deletes only docs mapped to the repo's URLs, not a fork's same name/author" do
+        allow(firestore_double).to receive(:mods).and_return([mine, fork])
+        allow(firestore_double).to receive(:sources).with(:mods).and_return({ "m1" => modinfo_url, "m2" => fork_url })
+
+        expect(firestore_double).to receive(:delete).with(:mod, mine)
+        expect(firestore_double).not_to receive(:delete).with(:mod, fork)
+
+        cmd_with_cascade.repos(repo)
+      end
+
+      it "falls back to name+author only for docs with no recorded source" do
+        allow(firestore_double).to receive(:mods).and_return([mine, fork, unmapped])
+        allow(firestore_double).to receive(:sources).with(:mods).and_return({ "m1" => modinfo_url, "m2" => fork_url })
+
+        expect(firestore_double).to receive(:delete).with(:mod, mine)
+        expect(firestore_double).to receive(:delete).with(:mod, unmapped)
+        expect(firestore_double).not_to receive(:delete).with(:mod, fork)
+
+        cmd_with_cascade.repos(repo)
       end
     end
 
