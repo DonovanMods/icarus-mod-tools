@@ -151,6 +151,19 @@ RSpec.describe Icarus::Mod::Tools::Sync::Tools do
         expect { toolsync.info_array }.to output(/#{Regexp.escape(odd_url)}/).to_stderr
         expect(toolsync.transient_failures).to eq([odd_url])
       end
+
+      [
+        ["a JSON array", []],
+        ["a JSON string", "oops"],
+        ["a JSON null", nil],
+        ["a tools entry that is not an object", { tools: ["oops"] }]
+      ].each do |label, body|
+        it "treats #{label} as malformed (transient) instead of aborting the sync" do
+          stub_fetch(odd_url).and_return(body)
+          expect { toolsync.info_array }.to output(/#{Regexp.escape(odd_url)}/).to_stderr
+          expect(toolsync.transient_failures).to eq([odd_url])
+        end
+      end
     end
   end
 

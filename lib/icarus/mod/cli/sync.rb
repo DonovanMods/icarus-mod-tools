@@ -13,21 +13,26 @@ module Icarus
       class Sync < SubcommandBase
         $firestore = nil
 
+        # Stage 2 refuses to delete more than this share of a collection (or to empty it) without --force
+        MASS_DELETE_RATIO = 0.25
+        MASS_DELETE_MIN = 5
+
         class_option :dry_run, type: :boolean, default: false, desc: "Dry run (no changes will be made)"
+        class_option :force, type: :boolean, default: false,
+                             desc: "Let mods/tools sync delete over #{(MASS_DELETE_RATIO * 100).to_i}% of a collection"
 
         desc "all", "Run all sync jobs"
         def all
-          puts "Running Toolinfo Sync..." if verbose?
-          invoke :toolinfo
+          # Each stage exits 1 on failure; run the rest anyway, then exit 1 if any failed
+          failed = %i[toolinfo tools modinfo mods].map do |stage|
+            puts "Running #{stage.to_s.capitalize} Sync..." if verbose?
+            invoke stage
+            false
+          rescue SystemExit => e
+            !e.success?
+          end
 
-          puts "Running Tools Sync..." if verbose?
-          invoke :tools
-
-          puts "Running Modinfo Sync..." if verbose?
-          invoke :modinfo
-
-          puts "Running Mods Sync..." if verbose?
-          invoke :mods
+          exit 1 if failed.any?
         end
 
         desc "modinfo", "Reads from 'meta/repos/list' and Syncs any modinfo files we find (github only for now)"
@@ -212,6 +217,7 @@ module Icarus
             end
           rescue Icarus::Mod::Tools::Error => e
             warn e.message
+            exit 1
           end
 
           def sync_list(type)
@@ -227,6 +233,7 @@ module Icarus
 
             return if options[:check]
 
+            updating = !options[:dry_run]
             puts "Updating List Data..." if verbose?
             info_array.each do |list|
               verb = "Creating"
@@ -257,7 +264,7 @@ module Icarus
               end
 
               response = sync.update(list)
-              puts success_or_failure(status: response) if verbose > 1
+              puts success_or_failure(response) if verbose > 1
             end
 
             if options[:dry_run]
@@ -272,16 +279,37 @@ module Icarus
 
             return unless delete_array.any?
 
+            refuse_mass_delete(type, delete_array, list_array, info_array)
+
             puts "Deleting outdated items..." if verbose?
             delete_array.each do |list|
               print "Deleting '#{list.author || 'NoOne'}/#{list.name || 'Unnamed'}'#{' ' * 20}" if verbose > 1
               response = sync.delete(list)
-              puts success_or_failure(status: response) if verbose > 1
+              puts success_or_failure(response) if verbose > 1
             end
 
             puts "Deleted #{delete_array.count} outdated items" if verbose?
           rescue Icarus::Mod::Tools::Error => e
             warn e.message
+            exit 1
+          rescue StandardError
+            # Keep the sources of the docs written before a failure, so the next run can protect them (#16)
+            sync&.save_sources if updating
+            raise
+          end
+
+          # A wave of 404s (a GitHub outage, a mass rename) looks like every author removing their file, so stage 2
+          # will not delete more than MASS_DELETE_RATIO of a collection, or empty it, unless run with --force
+          def refuse_mass_delete(type, delete_array, list_array, info_array)
+            return if options[:force]
+
+            emptying = info_array.empty? && delete_array.size >= list_array.size
+            too_many = delete_array.size >= MASS_DELETE_MIN && delete_array.size > list_array.size * MASS_DELETE_RATIO
+            return unless emptying || too_many
+
+            raise Icarus::Mod::Tools::Error,
+                  Paint["Refusing to delete #{delete_array.size} of #{list_array.size} #{type}; " \
+                        "check the sources, then rerun with --force if this is intended", :red, :bright]
           end
         end
       end

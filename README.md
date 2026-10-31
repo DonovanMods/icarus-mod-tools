@@ -146,9 +146,12 @@ Options:
   -v, [--verbose], [--no-verbose]  # Increase verbosity. May be repeated for even more verbosity.
                                    # Default: [true]
       [--dry-run], [--no-dry-run]  # Dry run (no changes will be made)
+      [--force]                    # Let mods/tools sync delete over 25% of a collection
 ```
 
-**Removal**: Mod and tool authors control their own entries. If a `modinfo.json` or `toolinfo.json` is removed or renamed (so it returns HTTP 404 or 410), `imt sync mods`/`tools` deletes its entries. If a file cannot be read for any other reason (timeout, network error, server error, rate limit, or invalid JSON), that file's entries are kept on that run and a warning names them; other sources are unaffected. Sync tracks which file each entry came from in the internal `meta/mod_sources` and `meta/tool_sources` documents (override with `collections.meta.mod_sources` / `tool_sources` in the config). An entry with no recorded source yet is kept while any source fails.
+**Removal**: Mod and tool authors control their own entries. If a `modinfo.json` or `toolinfo.json` is removed or renamed (so it returns HTTP 404 or 410), `imt sync mods`/`tools` deletes its entries. If a file cannot be read for any other reason (timeout, network error, server error, rate limit, or invalid JSON), that file's entries are kept on that run and a warning names them; other sources are unaffected. Sync tracks which file each entry came from in the internal `meta/mod_sources` and `meta/tool_sources` documents (override with `collections.meta.mod_sources` / `tool_sources` in the config). An entry with no recorded source yet is kept while any source fails. As a brake on a wave of 404s (a GitHub outage, a mass rename), `imt sync mods`/`tools` refuses to delete more than 25% of a collection (at least 5 entries), or to empty it, and exits 1; rerun with `--force` once you have checked the sources.
+
+**Exit status**: each `imt sync` command exits 1 when it fails. `imt sync all` runs every stage even if one fails, then exits 1.
 
 **IDs**: New mods and tools get a document ID derived from their type, author and name, so an entry that is deleted and later re-added gets the same ID. `imt sync cleanup` keeps the oldest of any duplicates (the ID clients already have), copies the newest duplicate's data onto it, and deletes the rest.
 

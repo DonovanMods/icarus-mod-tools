@@ -39,7 +39,11 @@ module Icarus
           def retrieve_from_url(url)
             raise RequestFailed, "Invalid URI: '#{url}'" unless url && url =~ URI::DEFAULT_PARSER.make_regexp
 
-            uri = URI(url)
+            uri = begin
+              URI(url)
+            rescue URI::InvalidURIError
+              raise RequestFailed, "Invalid URI: '#{url}'"
+            end
             http = Net::HTTP.new(uri.host, uri.port)
 
             if uri.scheme == "https"
@@ -56,7 +60,7 @@ module Icarus
             end
 
             res = begin
-              http.get(uri.path.empty? ? "/" : uri.path)
+              http.get(uri.request_uri)
             rescue *NETWORK_ERRORS => e
               raise RequestTransient, "HTTP Request failed for #{url} (#{e.class}): #{e.message}"
             end

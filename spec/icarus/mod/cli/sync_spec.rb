@@ -122,8 +122,10 @@ RSpec.describe Icarus::Mod::CLI::Sync do
         allow(modinfo_sync_double).to receive(:repositories).and_return([])
       end
 
-      it "outputs an error message" do
-        expect { sync_command.modinfo }.to output(/Unable to find any repositories/).to_stderr
+      it "outputs an error message and exits 1" do
+        expect { sync_command.modinfo }
+          .to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
+          .and output(/Unable to find any repositories/).to_stderr
       end
     end
 
@@ -180,8 +182,10 @@ RSpec.describe Icarus::Mod::CLI::Sync do
         allow(toolinfo_sync_double).to receive(:repositories).and_return([])
       end
 
-      it "outputs an error message" do
-        expect { sync_command.toolinfo }.to output(/Unable to find any repositories/).to_stderr
+      it "outputs an error message and exits 1" do
+        expect { sync_command.toolinfo }
+          .to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
+          .and output(/Unable to find any repositories/).to_stderr
       end
     end
   end
@@ -230,6 +234,67 @@ RSpec.describe Icarus::Mod::CLI::Sync do
 
       it "updates the existing mod" do
         expect { sync_command.mods }.to output(/Updating/).to_stdout
+      end
+
+      it "reports Failure when the update fails" do
+        allow(mods_sync_double).to receive(:update).and_return(false)
+        expect { sync_command.mods }.to output(/Failure/).to_stdout
+      end
+    end
+
+    context "when a write raises partway through" do
+      before do
+        allow(mods_sync_double).to receive(:update).and_raise(Google::Cloud::UnavailableError, "unavailable")
+      end
+
+      it "still saves the sources recorded so far" do
+        expect { sync_command.mods }.to raise_error(Google::Cloud::UnavailableError).and output.to_stdout
+        expect(mods_sync_double).to have_received(:save_sources)
+      end
+    end
+
+    context "when it would delete a large share of the collection" do
+      let(:stale) do
+        Array.new(6) { |i| Icarus::Mod::Tools::Modinfo.new({ name: "Stale#{i}", author: "Someone", description: "x" }, id: "stale-#{i}") }
+      end
+
+      before do
+        live = Array.new(2) { |i| Icarus::Mod::Tools::Modinfo.new({ name: "Live#{i}", author: "Someone", description: "x" }, id: "live-#{i}") }
+        allow(mods_sync_double).to receive(:mods).and_return(stale + live)
+        allow(mods_sync_double).to receive(:find_info) { |list| live.include?(list) ? list : nil }
+      end
+
+      it "refuses, deletes nothing and exits 1" do
+        expect { sync_command.mods }
+          .to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
+          .and output(/Refusing to delete 6 of 8 mods.*--force/m).to_stderr
+          .and output.to_stdout
+        expect(mods_sync_double).not_to have_received(:delete)
+      end
+
+      context "with --force" do
+        let(:options) { { verbose: [true], dry_run: false, check: false, force: true } }
+
+        it "deletes them" do
+          expect { sync_command.mods }.to output(/Deleted 6 outdated items/).to_stdout
+          expect(mods_sync_double).to have_received(:delete).exactly(6).times
+        end
+      end
+    end
+
+    context "when no source could be read at all" do
+      let(:stale_mod) { Icarus::Mod::Tools::Modinfo.new({ name: "Stale", author: "Someone", description: "Gone" }, id: "stale-id") }
+
+      before do
+        allow(mods_sync_double).to receive_messages(info_array: [], mods: [stale_mod])
+      end
+
+      it "refuses to empty the collection" do
+        expect { sync_command.mods }
+          .to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
+          .and output(/Refusing to delete 1 of 1 mods/).to_stderr
+          .and output.to_stdout
+        expect(mods_sync_double).not_to have_received(:delete)
       end
     end
     context "when an existing mod no longer appears in any modinfo file" do
@@ -351,6 +416,16 @@ RSpec.describe Icarus::Mod::CLI::Sync do
       expect(sync_command).to receive(:invoke).with(:mods).ordered
 
       expect { sync_command.all }.to output(String).to_stdout
+    end
+
+    it "runs every stage even when one fails, then exits 1" do
+      allow(sync_command).to receive(:invoke)
+      allow(sync_command).to receive(:invoke).with(:toolinfo).and_raise(SystemExit.new(1))
+
+      expect { sync_command.all }
+        .to raise_error(SystemExit) { |error| expect(error.status).to eq(1) }
+        .and output(String).to_stdout
+      expect(sync_command).to have_received(:invoke).with(:mods)
     end
   end
 
