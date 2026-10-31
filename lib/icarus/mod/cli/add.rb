@@ -1,6 +1,7 @@
 # frozen_string_literal: true
 
 require "firestore"
+require "github"
 require "tools/modinfo"
 
 module Icarus
@@ -22,7 +23,16 @@ module Icarus
 
         desc "repos", "Adds an entry to 'meta/repos/list'"
         def repos(item)
-          add_to_list(:repositories, :repositories, item)
+          # Stage 1 of sync searches entries in the canonical URL form, so store that whatever form we were given
+          url = Github.canonical_url(item)
+          unless url
+            warn Paint["#{item} is not a GitHub repository (use owner/repo or a github.com URL)", :red]
+            exit 1
+          end
+
+          add_to_list(:repositories, :repositories, url) do |existing|
+            existing.any? { |entry| Github.canonical_url(entry)&.casecmp?(url) }
+          end
         end
 
         desc "mod", "Adds an entry to 'mods'"
@@ -78,7 +88,13 @@ module Icarus
             end
 
             firestore = Firestore.new
-            payload = [firestore.send(collection), item].flatten.compact
+            existing = firestore.send(collection)
+            if block_given? && yield(existing)
+              puts "#{item} is already listed"
+              return
+            end
+
+            payload = [existing, item].flatten.compact
 
             exit 1 unless report(firestore.update(type, payload, merge: true))
           end

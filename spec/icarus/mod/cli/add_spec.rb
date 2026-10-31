@@ -133,9 +133,34 @@ RSpec.describe Icarus::Mod::CLI::Add do
       expect(firestore_double).to have_received(:repositories)
     end
 
-    it "updates firestore with new entry" do
+    it "stores the canonical GitHub URL, the form stage 1 of sync searches" do
       add_command.repos(repo)
-      expect(firestore_double).to have_received(:update).with(:repositories, [repo], merge: true)
+      expect(firestore_double).to have_received(:update).with(:repositories, ["https://github.com/owner/repo"], merge: true)
+    end
+
+    it "normalises a full URL" do
+      add_command.repos("https://github.com/owner/repo.git")
+      expect(firestore_double).to have_received(:update).with(:repositories, ["https://github.com/owner/repo"], merge: true)
+    end
+
+    context "when the repository is already listed under any spelling" do
+      before do
+        allow(firestore_double).to receive(:repositories).and_return(["https://github.com/Owner/Repo"])
+      end
+
+      it "writes nothing and says so" do
+        expect { add_command.repos(repo) }.to output(/already listed/i).to_stdout
+        expect(firestore_double).not_to have_received(:update)
+      end
+    end
+
+    context "when it is not a GitHub repository" do
+      it "refuses it and exits 1" do
+        expect { add_command.repos("https://gitlab.com/owner/repo") }
+          .to raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+          .and output(/GitHub/).to_stderr
+        expect(firestore_double).not_to have_received(:update)
+      end
     end
 
     context "when update succeeds" do
@@ -176,7 +201,7 @@ RSpec.describe Icarus::Mod::CLI::Add do
         add_command.repos(repo)
         expect(firestore_double).to have_received(:update).with(
           :repositories,
-          ["existing/repo", repo],
+          ["existing/repo", "https://github.com/owner/repo"],
           merge: true
         )
       end

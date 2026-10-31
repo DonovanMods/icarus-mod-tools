@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## History (reverse chronological order)
 
+### Unreleased
+
+- Fix `imt add repos owner/repo` storing a bare `owner/repo`, which stage 1 of sync never searched (it only looked at entries containing "github"); it now stores the canonical `https://github.com/owner/repo` for any GitHub form, refuses non-GitHub repositories, and does nothing when the repository is already listed under any spelling
+- Stage 1 of sync (`imt sync modinfo`/`toolinfo`) now also searches bare `owner/repo` entries already in `meta/repos`
+
 ### v3.2.0 - 2026-10-30
 
 - Add `imt validate repo OWNER/REPO [--json]`, a read-only pre-check for a repo before it is added to `meta/repos` (repo state, info files, entry validation and link checks; exits 0/1/2)

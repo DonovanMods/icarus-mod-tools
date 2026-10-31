@@ -49,6 +49,12 @@ RSpec.describe Icarus::Mod::Tools::Sync::ToolinfoList do
   end
 
   describe "#toolinfo_data" do
+    context "when the repository is stored as a bare owner/repo" do
+      it "searches it on GitHub" do
+        expect(toolinfo_sync.data(["author/mod"])).to eq([toolinfo_url])
+      end
+    end
+
     context "when the repository is on Github" do
       it "returns an array of toolinfo urls" do
         expect(toolinfo_sync.data([url])).to eq([toolinfo_url])

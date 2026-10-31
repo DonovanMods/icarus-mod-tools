@@ -49,6 +49,12 @@ RSpec.describe Icarus::Mod::Tools::Sync::ModinfoList do
   end
 
   describe "#modinfo_data" do
+    context "when the repository is stored as a bare owner/repo" do
+      it "searches it on GitHub" do
+        expect(modinfo_sync.data(["author/mod"])).to eq([modinfo_url])
+      end
+    end
+
     context "when the repository is on Github" do
       it "returns an array of modinfo urls" do
         expect(modinfo_sync.data([url])).to eq([modinfo_url])
