@@ -6,6 +6,8 @@ All notable changes to this project will be documented in this file.
 
 ### Unreleased
 
+- `imt sync mods`/`tools --dry-run` now lists the entries a real run would delete, and warns when the mass-delete brake would refuse (a real run would exit 1 without `--force`)
+- Document `imt add --dry-run` in the README
 - Update `google-cloud-firestore` to 3.x and `octokit` to 10.x (no API changes affect `imt`)
 - Update development tools (`pry` 0.16, `guard`, `rake`)
 
