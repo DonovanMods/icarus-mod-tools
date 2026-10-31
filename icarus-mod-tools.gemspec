@@ -33,6 +33,7 @@ Gem::Specification.new do |spec|
   # spec.add_dependency "example-gem", "~> 1.0"
   spec.add_dependency "google-cloud-firestore", "~> 2.7"
   spec.add_dependency "octokit", "~> 6.0"
+  spec.add_dependency "ostruct", "~> 0.6"
   spec.add_dependency "paint", "~> 2.3"
   spec.add_dependency "thor", "~> 1.2"
   # For more information and examples about making a new gem, check out our
