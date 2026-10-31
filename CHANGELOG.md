@@ -9,6 +9,9 @@ All notable changes to this project will be documented in this file.
 - Require Ruby 4.0 or greater (was 3.1)
   - Fixes `imt sync` crashing during Firestore authentication with `wrong number of arguments (given 2, expected 1)` on Ruby 3.1 once `json` 3.x is installed; `multi_json` releases that support `json` 3.x (1.21.2+) need Ruby 3.2 or newer
 - Update `multi_json` to 1.21.2
+- Declare `ostruct` as a runtime dependency; it is no longer a default gem on Ruby 4.0, so a plain `gem install` could fail to load the config
+- Update `faraday`, `jwt`, `addressable` and `concurrent-ruby` to clear known security advisories
+- Remove the unused, stale RBS signatures under `sig/`
 
 ### v2.7.0 - 2026-10-30
 
