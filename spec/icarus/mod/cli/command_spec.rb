@@ -50,6 +50,26 @@ RSpec.describe Icarus::Mod::CLI::Command do
       end
     end
 
+    context "when config file contains malformed JSON" do
+      let(:bad_file) { Tempfile.new(["bad", ".json"]) }
+
+      before do
+        bad_file.write("{ not json")
+        bad_file.rewind
+      end
+
+      after do
+        bad_file.close
+        bad_file.unlink
+      end
+
+      it "prints error and exits with status 1" do
+        expect do
+          described_class.new([], { version: false, config: bad_file.path })
+        end.to output(/Could not find or read Config.*malformed/m).to_stderr.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+      end
+    end
+
     context "when config file exists" do
       it "reads the config file" do
         expect(Icarus::Mod::Config).to receive(:read).with(config_file.path)

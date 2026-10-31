@@ -26,7 +26,12 @@ module Icarus
             exit 1
           end
 
-          Icarus::Mod::Config.read(options[:config])
+          begin
+            Icarus::Mod::Config.read(options[:config])
+          rescue JSON::ParserError => e
+            warn "Could not find or read Config from '#{options[:config]}' - the file is malformed JSON (#{e.message.lines.first.strip})"
+            exit 1
+          end
         end
 
         desc "sync", "Syncs the databases"

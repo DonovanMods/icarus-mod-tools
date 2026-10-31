@@ -93,6 +93,34 @@ RSpec.describe Icarus::Mod::Github do
       expect(github.client).not_to have_received(:contents)
     end
 
+    context "when called with different path and recursive arguments" do
+      let(:nested) { {name: "nested.txt", type: "file", path: "test/dir/nested.txt"} }
+
+      before do
+        allow(github.client).to receive(:contents).with(repository_stub, path: dir[:path]).and_return([nested])
+      end
+
+      it "does not serve a cached top-level result to a recursive call" do
+        github.all_files
+        names = github.all_files(recursive: true).map { |f| f[:name] }
+
+        expect(names).to include("nested.txt")
+      end
+
+      it "does not serve a cached top-level result to a sub-path call" do
+        github.all_files
+        names = github.all_files(path: dir[:path]).map { |f| f[:name] }
+
+        expect(names).to eq(["nested.txt"])
+      end
+
+      it "still serves repeated identical calls from the cache" do
+        2.times { github.all_files }
+
+        expect(github.client).to have_received(:contents).with(repository_stub, path: nil).once
+      end
+    end
+
     context "when a block is given" do
       it "yields each file" do
         expect { |b| github.all_files(&b) }.to yield_with_args(file)
@@ -123,7 +151,7 @@ RSpec.describe Icarus::Mod::Github do
   end
 
   describe "#find" do
-    let(:pattern) { "test" }
+    let(:pattern) { "test.txt" }
     let(:file) { {name: "test.txt", type: "file"} }
 
     before do
@@ -139,6 +167,25 @@ RSpec.describe Icarus::Mod::Github do
 
     it "returns the first file that matches the pattern" do
       expect(github.find(pattern)).to eq(file)
+    end
+
+    it "does not match a file whose name merely contains the pattern" do
+      github.instance_variable_set(:@resources, [{name: "my_modinfo.json.bak", type: "file"}])
+
+      expect(github.find("modinfo.json")).to be_nil
+    end
+
+    it "matches the whole file name case-insensitively" do
+      modinfo = {name: "ModInfo.JSON", type: "file"}
+      github.instance_variable_set(:@resources, [{name: "my_modinfo.json.bak", type: "file"}, modinfo])
+
+      expect(github.find("modinfo.json")).to eq(modinfo)
+    end
+
+    it "treats the pattern literally" do
+      github.instance_variable_set(:@resources, [{name: "modinfoxjson", type: "file"}])
+
+      expect(github.find("modinfo.json")).to be_nil
     end
 
     it "returns nil if no file matches the pattern" do

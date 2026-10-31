@@ -45,7 +45,20 @@ RSpec.describe Icarus::Mod::CLI::Add do
       end
 
       it "outputs Failure" do
-        expect { add_command.modinfo(modinfo_url) }.to output(/Failure/).to_stdout
+        expect { add_command.modinfo(modinfo_url) }.to output(/Failure/).to_stdout.and raise_error(SystemExit)
+      end
+
+      it "exits with status 1" do
+        expect { add_command.modinfo(modinfo_url) }.to output(/Failure/).to_stdout.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+      end
+    end
+
+    context "with --dry-run" do
+      let(:options) { { verbose: [true], dry_run: true } }
+
+      it "does not write to firestore" do
+        expect { add_command.modinfo(modinfo_url) }.to output(/Would add/).to_stdout
+        expect(firestore_double).not_to have_received(:update)
       end
     end
 
@@ -90,7 +103,20 @@ RSpec.describe Icarus::Mod::CLI::Add do
       end
 
       it "outputs Failure" do
-        expect { add_command.toolinfo(toolinfo_url) }.to output(/Failure/).to_stdout
+        expect { add_command.toolinfo(toolinfo_url) }.to output(/Failure/).to_stdout.and raise_error(SystemExit)
+      end
+
+      it "exits with status 1" do
+        expect { add_command.toolinfo(toolinfo_url) }.to output(/Failure/).to_stdout.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+      end
+    end
+
+    context "with --dry-run" do
+      let(:options) { { verbose: [true], dry_run: true } }
+
+      it "does not write to firestore" do
+        expect { add_command.toolinfo(toolinfo_url) }.to output(/Would add/).to_stdout
+        expect(firestore_double).not_to have_received(:update)
       end
     end
   end
@@ -120,7 +146,20 @@ RSpec.describe Icarus::Mod::CLI::Add do
       end
 
       it "outputs Failure" do
-        expect { add_command.repos(repo) }.to output(/Failure/).to_stdout
+        expect { add_command.repos(repo) }.to output(/Failure/).to_stdout.and raise_error(SystemExit)
+      end
+
+      it "exits with status 1" do
+        expect { add_command.repos(repo) }.to output(/Failure/).to_stdout.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+      end
+    end
+
+    context "with --dry-run" do
+      let(:options) { { verbose: [true], dry_run: true } }
+
+      it "does not write to firestore" do
+        expect { add_command.repos(repo) }.to output(/Would add/).to_stdout
+        expect(firestore_double).not_to have_received(:update)
       end
     end
 
@@ -187,8 +226,8 @@ RSpec.describe Icarus::Mod::CLI::Add do
           allow(firestore_double).to receive(:update).and_return(false)
         end
 
-        it "outputs Failure" do
-          expect { add_command.mod }.to output(/Failure/).to_stdout
+        it "outputs Failure and exits with status 1" do
+          expect { add_command.mod }.to output(/Failure/).to_stdout.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
         end
       end
     end
@@ -233,6 +272,90 @@ RSpec.describe Icarus::Mod::CLI::Add do
 
       it "outputs validation error and exits" do
         expect { add_command.mod }.to output(/Invalid modinfo/).to_stderr.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+      end
+    end
+
+    context "with --dry-run" do
+      let(:options) { { verbose: [true], modinfo: modinfo_file.path, dry_run: true } }
+
+      it "prints what would be written without writing" do
+        expect { add_command.mod }.to output(/Would add: Test Mod/).to_stdout
+        expect(firestore_double).not_to have_received(:update)
+      end
+
+      it "still rejects invalid entries" do
+        modinfo_file.truncate(0)
+        modinfo_file.rewind
+        modinfo_file.write(JSON.generate(mods: [{ name: "", author: "", description: "" }]))
+        modinfo_file.flush
+
+        expect { add_command.mod }.to output(/Invalid modinfo/).to_stderr.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+      end
+    end
+
+    context "with malformed JSON" do
+      let(:options) { { verbose: [true], modinfo: modinfo_file.path } }
+
+      before do
+        modinfo_file.truncate(0)
+        modinfo_file.rewind
+        modinfo_file.write("{ not json")
+        modinfo_file.flush
+      end
+
+      it "outputs an error and exits 1" do
+        expect { add_command.mod }.to output(/Invalid JSON/).to_stderr.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+      end
+    end
+
+    context "without a mods key" do
+      let(:options) { { verbose: [true], modinfo: modinfo_file.path } }
+
+      before do
+        modinfo_file.truncate(0)
+        modinfo_file.rewind
+        modinfo_file.write(JSON.generate(tools: []))
+        modinfo_file.flush
+      end
+
+      it "outputs an error and exits 1" do
+        expect { add_command.mod }.to output(/no 'mods' list/).to_stderr.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+      end
+    end
+
+    context "with a valid entry followed by an invalid one" do
+      let(:options) { { verbose: [true], modinfo: modinfo_file.path } }
+
+      before do
+        good = valid_modinfo[:mods].first
+        modinfo_file.truncate(0)
+        modinfo_file.rewind
+        modinfo_file.write(JSON.generate(mods: [good, { name: "", author: "", description: "" }]))
+        modinfo_file.flush
+      end
+
+      it "writes nothing and exits 1" do
+        expect { add_command.mod }.to output(/Invalid modinfo/).to_stderr.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+        expect(firestore_double).not_to have_received(:update)
+      end
+    end
+
+    context "when one of several writes fails" do
+      let(:options) { { verbose: [true], modinfo: modinfo_file.path } }
+
+      before do
+        first = valid_modinfo[:mods].first
+        second = first.merge(name: "Test Mod 2")
+        modinfo_file.truncate(0)
+        modinfo_file.rewind
+        modinfo_file.write(JSON.generate(mods: [first, second]))
+        modinfo_file.flush
+        allow(firestore_double).to receive(:update).and_return(false, true)
+      end
+
+      it "attempts every entry and exits 1" do
+        expect { add_command.mod }.to output(/Failure.*Success/m).to_stdout.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+        expect(firestore_double).to have_received(:update).twice
       end
     end
 
