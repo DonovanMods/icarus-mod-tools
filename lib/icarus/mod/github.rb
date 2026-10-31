@@ -8,6 +8,15 @@ module Icarus
     class Github
       attr_reader :client, :resources
 
+      # owner/repo, optionally as a github.com URL (with .git, a trailing slash or a deeper path)
+      REPO_PATTERN = %r{\A(?:(?:https?://)?(?:www\.)?github\.com/)?([A-Za-z0-9][\w.-]*)/([\w.-]+?)(?:\.git)?(?:[/?#].*)?\z}
+
+      # The form meta/repos stores ("https://github.com/owner/repo"), or nil when +repo+ is not a GitHub repository
+      def self.canonical_url(repo)
+        match = REPO_PATTERN.match(repo.to_s.strip)
+        match && "https://github.com/#{match[1]}/#{match[2]}"
+      end
+
       def initialize(repo = nil)
         self.repository = repo if repo
         @client = Octokit::Client.new(access_token: Config.github.token)

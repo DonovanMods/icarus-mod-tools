@@ -47,6 +47,26 @@ RSpec.describe Icarus::Mod::Github do
     end
   end
 
+  describe ".canonical_url" do
+    {
+      "owner/repo" => "https://github.com/owner/repo",
+      "https://github.com/Owner/Repo" => "https://github.com/Owner/Repo",
+      "http://www.github.com/owner/repo.git" => "https://github.com/owner/repo",
+      "https://github.com/owner/repo/tree/main/mods" => "https://github.com/owner/repo",
+      "github.com/owner/repo/" => "https://github.com/owner/repo"
+    }.each do |input, expected|
+      it "turns #{input.inspect} into #{expected}" do
+        expect(described_class.canonical_url(input)).to eq(expected)
+      end
+    end
+
+    ["https://gitlab.com/owner/repo", "justaname", "-flag/repo", "", nil].each do |input|
+      it "rejects #{input.inspect}" do
+        expect(described_class.canonical_url(input)).to be_nil
+      end
+    end
+  end
+
   describe "#repository=" do
     it "strips off the URL" do
       github.repository = repository

@@ -41,11 +41,11 @@ module Icarus
             repositories.map do |repo|
               print "searching #{repo}..." if verbose
 
-              case repo
-              when /github/
+              # A GitHub URL, or a bare owner/repo (how `imt add repos` stored entries before 3.2.1)
+              if Github.canonical_url(repo)
                 find_modinfo(repo, verbose:)
-              else
-                puts "Skipped...repository type not supported yet" if verbose
+              elsif verbose
+                puts "Skipped...repository type not supported yet"
               end
             end.compact
           end
