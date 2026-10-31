@@ -9,7 +9,7 @@ module Icarus
       class Modinfo < Baseinfo
         def to_h
           db_hash = super
-          db_hash[:meta] = {status:} # Add metadata
+          db_hash[:meta] = { status: } # Add metadata
 
           db_hash
         end

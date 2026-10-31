@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "tools/toolinfo"
 
 RSpec.describe Icarus::Mod::Tools::Toolinfo do

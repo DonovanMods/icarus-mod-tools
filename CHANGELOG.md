@@ -32,6 +32,8 @@ All notable changes to this project will be documented in this file.
 - Fix `imt list mods`/`tools` crashing on `--filter` values containing regex characters, on empty or non-text fields, on `--sort files` or fields missing from some entries, and on entries with no update time; filters are now case-insensitive substring matches and errors go to stderr
 - Fix `imt validate` crashing on an empty list, and `imt` crashing on a malformed config file (it now prints an error and exits 1)
 - Fix the GitHub file cache returning a top-level listing for recursive or sub-path lookups, and `find("modinfo.json")` matching names like `my_modinfo.json.bak`
+- CI now also runs RuboCop and `bundler-audit`, and pins its GitHub Actions to commit SHAs; add a `.rubocop.yml` matching the project's style (existing size/complexity offenses are recorded in `.rubocop_todo.yml`)
+- Update `rubocop-rspec` to 3.x (2.x no longer loads with current RuboCop)
 - Fix `imt add`: `mod` validates every entry before writing anything and reports bad JSON or a missing `mods` list; every `add` command exits 1 on failure; add `--dry-run`
 
 ### v2.7.0 - 2026-10-30

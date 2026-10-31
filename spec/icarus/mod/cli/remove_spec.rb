@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "cli/remove"
 require "tools/sync/helpers"
 
@@ -370,8 +372,8 @@ RSpec.describe Icarus::Mod::CLI::Remove do
         allow(firestore_double).to receive(:repositories).and_return([repo])
         # modinfo URL contains "owner/repo-fork" which should NOT match "owner/repo"
         allow(firestore_double).to receive(:modinfo).and_return([
-          "https://raw.githubusercontent.com/owner/repo-fork/main/modinfo.json"
-        ])
+                                                                  "https://raw.githubusercontent.com/owner/repo-fork/main/modinfo.json"
+                                                                ])
         allow(firestore_double).to receive(:toolinfo).and_return([])
         allow(firestore_double).to receive(:delete).and_return(true)
 

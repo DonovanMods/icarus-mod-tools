@@ -49,7 +49,9 @@ RSpec.describe Icarus::Mod::CLI::Add do
       end
 
       it "exits with status 1" do
-        expect { add_command.modinfo(modinfo_url) }.to output(/Failure/).to_stdout.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+        expect { add_command.modinfo(modinfo_url) }.to output(/Failure/).to_stdout.and raise_error(SystemExit) { |e|
+          expect(e.status).to eq(1)
+        }
       end
     end
 
@@ -107,7 +109,9 @@ RSpec.describe Icarus::Mod::CLI::Add do
       end
 
       it "exits with status 1" do
-        expect { add_command.toolinfo(toolinfo_url) }.to output(/Failure/).to_stdout.and raise_error(SystemExit) { |e| expect(e.status).to eq(1) }
+        expect { add_command.toolinfo(toolinfo_url) }.to output(/Failure/).to_stdout.and raise_error(SystemExit) { |e|
+          expect(e.status).to eq(1)
+        }
       end
     end
 

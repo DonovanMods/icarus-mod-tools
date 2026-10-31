@@ -11,6 +11,7 @@ module Icarus
       # rubocop:disable Style/GlobalVars
       class Remove < SubcommandBase
         include Tools::Sync::Helpers
+
         class_option :dry_run, type: :boolean, default: false, desc: "Dry run (no changes will be made)"
 
         desc "repos REPO", "Removes an entry from 'meta/repos/list' and cascades to associated mods/tools"
@@ -245,7 +246,7 @@ module Icarus
           entities.uniq(&:id)
         end
 
-        def preview_cascade_deletions(repo_name, modinfo_urls, toolinfo_urls)
+        def preview_cascade_deletions(_repo_name, modinfo_urls, toolinfo_urls)
           mods = []
           tools = []
 
@@ -293,10 +294,10 @@ module Icarus
             preview[:toolinfo_urls].each { |url| puts "    • #{url}" }
           end
 
-          if preview[:tools].any?
-            puts "  - Tools: #{preview[:tools].size}"
-            preview[:tools].each { |tool| puts "    • #{tool.name} by #{tool.author} (ID: #{tool.id})" }
-          end
+          return unless preview[:tools].any?
+
+          puts "  - Tools: #{preview[:tools].size}"
+          preview[:tools].each { |tool| puts "    • #{tool.name} by #{tool.author} (ID: #{tool.id})" }
         end
 
         def track_delete(type, identifier)

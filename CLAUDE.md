@@ -24,6 +24,7 @@ bundle exec rspec            # Run tests only (with Fuubar formatter)
 bundle exec rspec spec/path/to/file_spec.rb  # Run single test file
 bundle exec rspec spec/path/to/file_spec.rb:42  # Run single test at line 42
 guard                        # Auto-run tests on file changes
+bundle exec rubocop          # Lint (CI runs it; .rubocop_todo.yml holds the existing metrics offenses)
 ```
 
 ### Console & Debugging

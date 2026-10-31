@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "tools/modinfo"
 
 RSpec.describe Icarus::Mod::Tools::Modinfo do
@@ -5,7 +7,7 @@ RSpec.describe Icarus::Mod::Tools::Modinfo do
 
   let(:modinfo_data) { JSON.parse(File.read("spec/fixtures/modinfo.json"), symbolize_names: true)[:mods].first }
   let(:modinfo_keys) { modinfo_data.keys }
-  let(:meta) { {status: {errors: [], warnings: []}} }
+  let(:meta) { { status: { errors: [], warnings: [] } } }
 
   describe "#to_h" do
     it "returns a valid baseinfo Hash" do
@@ -36,7 +38,7 @@ RSpec.describe Icarus::Mod::Tools::Modinfo do
 
     %w[zipzip xpak].each do |filetype|
       context "when the files key is #{filetype.inspect}" do
-        before { modinfo_data.merge!(files: {filetype.to_sym => "https://example.org/foo"}) }
+        before { modinfo_data.merge!(files: { filetype.to_sym => "https://example.org/foo" }) }
 
         it "warns rather than errors" do
           expect(modinfo.warnings).to include(a_string_matching(/Invalid fileType: .*will become an error/))
@@ -45,7 +47,7 @@ RSpec.describe Icarus::Mod::Tools::Modinfo do
     end
 
     context "when the files key is notzipx" do
-      before { modinfo_data.merge!(files: {notzipx: "https://example.org/foo"}) }
+      before { modinfo_data.merge!(files: { notzipx: "https://example.org/foo" }) }
 
       it "is a warning that will become an error" do
         expect(modinfo.warnings).to include("Invalid fileType: NOTZIPX (this will become an error in a future release)")
@@ -57,7 +59,7 @@ RSpec.describe Icarus::Mod::Tools::Modinfo do
     end
 
     context "when the files key has a leading dot and odd case" do
-      before { modinfo_data.merge!(files: {".ZIP": "https://example.org/foo", ExModZ: "https://example.org/bar"}) }
+      before { modinfo_data.merge!(files: { ".ZIP": "https://example.org/foo", ExModZ: "https://example.org/bar" }) }
 
       it { is_expected.to be_valid }
 
@@ -79,7 +81,7 @@ RSpec.describe Icarus::Mod::Tools::Modinfo do
     end
 
     context "when a file URL is not a String" do
-      before { modinfo_data.merge!(files: {zip: 5}) }
+      before { modinfo_data.merge!(files: { zip: 5 }) }
 
       it "reports an error instead of raising" do
         expect(modinfo.errors).to include("Invalid URL: 5")
@@ -87,7 +89,7 @@ RSpec.describe Icarus::Mod::Tools::Modinfo do
     end
 
     context "when a file URL is malformed but matched the old pattern" do
-      before { modinfo_data.merge!(files: {zip: "javascript:alert(1)"}) }
+      before { modinfo_data.merge!(files: { zip: "javascript:alert(1)" }) }
 
       it "warns that it will become an error" do
         expect(modinfo.warnings).to include("Invalid URL: javascript:alert(1) (this will become an error in a future release)")
@@ -95,7 +97,7 @@ RSpec.describe Icarus::Mod::Tools::Modinfo do
     end
 
     context "when file_type is invalid" do
-      before { modinfo_data.merge!(files: {foo: "https://example.org/foo"}) }
+      before { modinfo_data.merge!(files: { foo: "https://example.org/foo" }) }
 
       it "returns false" do
         expect(modinfo.valid?).to be false
@@ -121,7 +123,7 @@ RSpec.describe Icarus::Mod::Tools::Modinfo do
     end
 
     context "when files URLs are invalid" do
-      before { modinfo_data.merge!(files: {pak: "invalid"}) }
+      before { modinfo_data.merge!(files: { pak: "invalid" }) }
 
       it "returns false" do
         expect(modinfo.valid?).to be false

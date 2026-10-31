@@ -45,7 +45,7 @@ module Icarus
 
         no_commands do
           def list_for_type(type)
-            klass = (type == :mods) ? Icarus::Mod::Tools::Modinfo : Icarus::Mod::Tools::Toolinfo
+            klass = type == :mods ? Icarus::Mod::Tools::Modinfo : Icarus::Mod::Tools::Toolinfo
             valid_keys = klass::HASHKEYS + [:updated_at]
             sort_field = options[:sort]&.to_sym
             filter = !options[:filter].empty?
@@ -54,9 +54,15 @@ module Icarus
               filter_field = options[:filter].first&.to_sym
               filter_value = options[:filter].last&.to_s
 
-              raise Icarus::Mod::Tools::Error, "Invalid filter option #{options[:filter]}" unless options[:filter].empty? || options[:filter]&.count == 2
+              unless options[:filter].empty? || options[:filter]&.count == 2
+                raise Icarus::Mod::Tools::Error,
+                      "Invalid filter option #{options[:filter]}"
+              end
 
-              raise Icarus::Mod::Tools::Error, "Invalid filter field '#{filter_field}'" unless filter_field && valid_keys.include?(filter_field)
+              unless filter_field && valid_keys.include?(filter_field)
+                raise Icarus::Mod::Tools::Error,
+                      "Invalid filter field '#{filter_field}'"
+              end
             end
 
             raise Icarus::Mod::Tools::Error, "Invalid sort field '#{sort_field}'" unless valid_keys.include?(sort_field)
@@ -91,7 +97,12 @@ module Icarus
             end
 
             # Sort by field, optionally subsorting by name
-            ((sort_field == :name) ? items.sort_by(&:name) : items.sort_by { |item| [item.send(sort_field).to_s, item.name.to_s] }).each do |item|
+            sorted = if sort_field == :name
+                       items.sort_by(&:name)
+                     else
+                       items.sort_by { |item| [item.send(sort_field).to_s, item.name.to_s] }
+                     end
+            sorted.each do |item|
               data_format = "%-<name>50s %-<author>20s v%-<version>10s%-<updated_at>20s"
               data_format += " %-<id>20s %<description>s" if verbose > 1
 

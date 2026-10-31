@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "github"
 require "ostruct"
 
@@ -55,8 +57,8 @@ RSpec.describe Icarus::Mod::Github do
 
   describe "#all_files" do
     let(:github) { described_class.new(repository) }
-    let(:file) { {name: "test.txt", type: "file"} }
-    let(:dir) { {name: "test-dir", type: "dir", path: "test/dir"} }
+    let(:file) { { name: "test.txt", type: "file" } }
+    let(:dir) { { name: "test-dir", type: "dir", path: "test/dir" } }
     let(:resources) { [file, dir] }
 
     before do
@@ -94,7 +96,7 @@ RSpec.describe Icarus::Mod::Github do
     end
 
     context "when called with different path and recursive arguments" do
-      let(:nested) { {name: "nested.txt", type: "file", path: "test/dir/nested.txt"} }
+      let(:nested) { { name: "nested.txt", type: "file", path: "test/dir/nested.txt" } }
 
       before do
         allow(github.client).to receive(:contents).with(repository_stub, path: dir[:path]).and_return([nested])
@@ -152,7 +154,7 @@ RSpec.describe Icarus::Mod::Github do
 
   describe "#find" do
     let(:pattern) { "test.txt" }
-    let(:file) { {name: "test.txt", type: "file"} }
+    let(:file) { { name: "test.txt", type: "file" } }
 
     before do
       allow(github).to receive(:all_files).and_call_original
@@ -170,20 +172,20 @@ RSpec.describe Icarus::Mod::Github do
     end
 
     it "does not match a file whose name merely contains the pattern" do
-      github.instance_variable_set(:@resources, [{name: "my_modinfo.json.bak", type: "file"}])
+      github.instance_variable_set(:@resources, [{ name: "my_modinfo.json.bak", type: "file" }])
 
       expect(github.find("modinfo.json")).to be_nil
     end
 
     it "matches the whole file name case-insensitively" do
-      modinfo = {name: "ModInfo.JSON", type: "file"}
-      github.instance_variable_set(:@resources, [{name: "my_modinfo.json.bak", type: "file"}, modinfo])
+      modinfo = { name: "ModInfo.JSON", type: "file" }
+      github.instance_variable_set(:@resources, [{ name: "my_modinfo.json.bak", type: "file" }, modinfo])
 
       expect(github.find("modinfo.json")).to eq(modinfo)
     end
 
     it "treats the pattern literally" do
-      github.instance_variable_set(:@resources, [{name: "modinfoxjson", type: "file"}])
+      github.instance_variable_set(:@resources, [{ name: "modinfoxjson", type: "file" }])
 
       expect(github.find("modinfo.json")).to be_nil
     end

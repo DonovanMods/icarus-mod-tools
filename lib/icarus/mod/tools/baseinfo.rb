@@ -81,8 +81,8 @@ module Icarus
           "#{author.to_s.strip}/#{name.to_s.strip}"
         end
 
-        def to_json(*args)
-          JSON.generate(@data, *args)
+        def to_json(*)
+          JSON.generate(@data, *)
         end
 
         def to_h

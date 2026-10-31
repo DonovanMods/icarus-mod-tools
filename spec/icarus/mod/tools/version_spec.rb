@@ -1,3 +1,5 @@
+# frozen_string_literal: true
+
 require "icarus/mod/version"
 
 RSpec.describe "Icarus::Mod::VERSION" do

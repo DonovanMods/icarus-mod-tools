@@ -1,7 +1,6 @@
 # frozen_string_literal: true
 
 require "digest"
-require "set"
 require "google/cloud/firestore"
 require "tools/modinfo"
 require "tools/toolinfo"
@@ -178,7 +177,9 @@ module Icarus
         response = @client.doc(collections.meta.send(type)).set(
           { list: Google::Cloud::Firestore::FieldValue.array_union(*values) }, merge: true
         )
-        instance_variable_set(:"@#{type}", (send(type) + values).uniq) if response.is_a?(Google::Cloud::Firestore::CommitResponse::WriteResult)
+        if response.is_a?(Google::Cloud::Firestore::CommitResponse::WriteResult)
+          instance_variable_set(:"@#{type}", (send(type) + values).uniq)
+        end
 
         response
       end
@@ -220,7 +221,7 @@ module Icarus
       end
 
       def sources_path(collection)
-        name = :"#{collection.chomp('s')}_sources"
+        name = :"#{collection.chomp("s")}_sources"
         collections.meta&.send(name) || "meta/#{name}"
       end
 
