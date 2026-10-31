@@ -23,11 +23,11 @@ module Icarus
           toolinfo: { file: "toolinfo.json", type: "tool", key: :tools, entity: Toolinfo }
         }.freeze
 
-        # http: a callable (uri, verb) -> [status, location]; replaceable so specs need no network
-        def initialize(repo, github: nil, http: nil)
+        # http/resolver: see LinkProbe; replaceable so specs need no network
+        def initialize(repo, github: nil, http: nil, resolver: nil)
           @github = github || Github.new
           @github.repository = repo
-          @probe = LinkProbe.new(http:)
+          @probe = LinkProbe.new(http:, resolver:)
         end
 
         def call

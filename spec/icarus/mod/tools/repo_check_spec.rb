@@ -4,7 +4,7 @@ require "github"
 require "tools/repo_check"
 
 RSpec.describe Icarus::Mod::Tools::RepoCheck do
-  subject(:check) { described_class.new("https://github.com/owner/repo", github:, http:) }
+  subject(:check) { described_class.new("https://github.com/owner/repo", github:, http:, resolver:) }
 
   let(:client) { instance_double(Octokit::Client) }
   let(:github) { instance_double(Icarus::Mod::Github, client:) }
@@ -28,10 +28,13 @@ RSpec.describe Icarus::Mod::Tools::RepoCheck do
   let(:responses) { { release_url => [302, cdn_url], cdn_url => [200, nil] } }
   # http is called as http.call(uri, verb) and returns [status, location]
   let(:http) do
-    lambda do |uri, verb|
+    lambda do |uri, verb, _ip|
       responses.fetch([verb, uri.to_s]) { responses.fetch(uri.to_s, [200, nil]) }
     end
   end
+
+  # Every host in these specs counts as public; LinkProbe's own specs cover the address checks
+  let(:resolver) { ->(_host) { ["93.184.216.34"] } }
 
   before do
     allow(github).to receive(:repository=)
@@ -202,7 +205,7 @@ RSpec.describe Icarus::Mod::Tools::RepoCheck do
     end
 
     context "when the request raises a network error" do
-      let(:http) { ->(_uri, _verb) { raise SocketError, "getaddrinfo" } }
+      let(:http) { ->(_uri, _verb, _ip) { raise SocketError, "getaddrinfo" } }
 
       it "is an entry error" do
         expect(result[:entries].first[:errors]).to include(a_string_matching(/files\.exmodz.*getaddrinfo/))
@@ -235,7 +238,7 @@ RSpec.describe Icarus::Mod::Tools::RepoCheck do
     end
 
     context "when the repository name is malformed" do
-      subject(:check) { described_class.new("justaname", github:, http:) }
+      subject(:check) { described_class.new("justaname", github:, http:, resolver:) }
 
       before { allow(github).to receive(:repository).and_return("justaname") }
 
