@@ -1,5 +1,7 @@
 # frozen_string_literal: true
 
+require "uri"
+
 module Icarus
   module Mod
     module Tools
@@ -11,6 +13,12 @@ module Icarus
         attr_accessor :source_url
 
         HASHKEYS = %i[name author version compatibility description files imageURL readmeURL].freeze
+
+        # Appended to warnings for input the stricter rules reject but the old ones accepted
+        FUTURE_ERROR = "(this will become an error in a future release)"
+
+        # Keys that may be read through method_missing even when absent from the data
+        EXTRA_KEYS = %i[files fileType fileURL].freeze
 
         # Match github.com URLs with /blob/ or /raw/ and convert to raw.githubusercontent.com
         GITHUB_BLOB_RAW_URL_PATTERN = %r{
@@ -33,7 +41,7 @@ module Icarus
         end
 
         def author_id
-          author.downcase.gsub(/\s+/, "_")
+          author.to_s.downcase.gsub(/\s+/, "_")
         end
 
         def read(data)
@@ -70,7 +78,7 @@ module Icarus
         end
 
         def uniq_name
-          "#{author.strip}/#{name.strip}"
+          "#{author.to_s.strip}/#{name.to_s.strip}"
         end
 
         def to_json(*args)
@@ -92,11 +100,11 @@ module Icarus
           validate_version
 
           %w[name author description].each do |key|
-            @errors << "#{key.capitalize} cannot be blank" unless validate_string(@data[key.to_sym])
+            validate_required_string(key, @data[key.to_sym])
           end
 
           %w[imageURL readmeURL].each do |key|
-            @errors << "Invalid URL #{key.capitalize}: #{@data[key.to_sym] || "blank"}" unless validate_url(@data[key.to_sym])
+            check_url(@data[key.to_sym], "Invalid URL #{key.capitalize}: #{@data[key.to_sym] || "blank"}")
           end
 
           @validated = true
@@ -109,62 +117,116 @@ module Icarus
         end
 
         def file_types
-          files&.keys || []
+          files.is_a?(Hash) ? files.keys : []
         end
 
         def file_urls
-          files&.values || []
+          files.is_a?(Hash) ? files.values : []
         end
 
-        def method_missing(method_name, *_args, &_block)
-          @data[method_name.to_sym] if @data.key?(method_name.to_sym)
+        # Firestore#update guards its payload with #empty?
+        def empty?
+          @data.nil? || @data.empty?
+        end
+
+        # Data keys and known fields read as nil when absent; any other name (a typo) raises
+        def method_missing(method_name, *args, &)
+          return super unless known_key?(method_name)
+
+          @data[method_name.to_sym]
         end
 
         def respond_to_missing?(method_name, include_private = false)
-          @data.key?(method_name.to_sym) || super
+          known_key?(method_name) || super
         end
 
         private
 
+        def known_key?(method_name)
+          return false if method_name.to_s.end_with?("=", "?", "!")
+
+          @data.key?(method_name.to_sym) || self.class::HASHKEYS.include?(method_name.to_sym) || EXTRA_KEYS.include?(method_name.to_sym)
+        end
+
+        # The file type must be exactly one of these, with an optional leading dot
         def filetype_pattern
+          /\A\.?(zip|pak|exmodz?)\z/i
+        end
+
+        # The previous, unanchored rule; a match here but not above is only a warning for now
+        def legacy_filetype_pattern
           /(zip|pak|exmodz?)/i
         end
 
-        def validate_string(string)
-          !(string.nil? || string.empty?)
+        def validate_required_string(key, value)
+          if value.nil? || value == ""
+            @errors << "#{key.capitalize} cannot be blank"
+          elsif !value.is_a?(String)
+            @errors << "#{key.capitalize} must be a string"
+          end
         end
 
-        def validate_url(url)
-          return true if url.nil? || url.empty?
+        # :ok, :legacy (passed the old check only, so warn) or :invalid
+        def url_status(url)
+          return :ok if url.nil? || url == ""
+          return :invalid unless url.is_a?(String)
+          return :ok if strict_url?(url)
 
-          url =~ URI::DEFAULT_PARSER.make_regexp
+          url.match?(URI::DEFAULT_PARSER.make_regexp) ? :legacy : :invalid
+        end
+
+        def strict_url?(url)
+          uri = URI.parse(url)
+          %w[http https].include?(uri.scheme&.downcase) && !uri.host.to_s.empty?
+        rescue URI::Error
+          false
+        end
+
+        def check_url(url, message)
+          case url_status(url)
+          when :invalid then @errors << message
+          when :legacy then @warnings << "#{message} #{FUTURE_ERROR}"
+          end
         end
 
         def validate_files
           @warnings << "This mod uses deprecated fields (fileType and fileURL)" if @data.key?(:fileType) || @data.key?(:fileURL)
+
+          if !files.nil? && !files.is_a?(Hash)
+            @errors << "Files must be an object"
+            return
+          end
+
           @warnings << "files should not be empty" if file_types.empty?
 
           file_types.each { |file_type| validate_filetype(file_type) }
 
-          file_urls.each do |file_url|
-            @errors << "Invalid URL: #{file_url}" unless validate_url(file_url)
-          end
+          file_urls.each { |file_url| check_url(file_url, "Invalid URL: #{file_url}") }
         end
 
         def validate_filetype(file_type)
-          @errors << "Invalid fileType: #{file_type.upcase}" unless file_type&.match?(filetype_pattern)
+          name = file_type.to_s
+          return if name.match?(filetype_pattern)
+
+          if name.match?(legacy_filetype_pattern)
+            @warnings << "Invalid fileType: #{name.upcase} #{FUTURE_ERROR}"
+          else
+            @errors << "Invalid fileType: #{name.upcase}"
+          end
         end
 
         def validate_version
           if version.nil?
             @warnings << "Version was nil, it has been defaulted to 1.0"
+          elsif !version.is_a?(String)
+            @errors << "Version must be a string"
           else
-            @warnings << "Version should be a version string" unless /^\d+[.\d+]*/.match?(version)
+            @warnings << "Version should be a version string" unless /\A\d+(\.\d+)*\z/.match?(version)
           end
         end
 
         def normalize_github_url(url)
-          return url if url.nil? || url.empty?
+          return url unless url.is_a?(String) && !url.empty?
 
           if url.match?(GITHUB_BLOB_RAW_URL_PATTERN)
             normalized = url.gsub(GITHUB_BLOB_RAW_URL_PATTERN, '\1://raw.githubusercontent.com/\2/\3/\4')

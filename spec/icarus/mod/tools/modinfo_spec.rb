@@ -34,6 +34,66 @@ RSpec.describe Icarus::Mod::Tools::Modinfo do
       end
     end
 
+    %w[zipzip xpak].each do |filetype|
+      context "when the files key is #{filetype.inspect}" do
+        before { modinfo_data.merge!(files: {filetype.to_sym => "https://example.org/foo"}) }
+
+        it "warns rather than errors" do
+          expect(modinfo.warnings).to include(a_string_matching(/Invalid fileType: .*will become an error/))
+        end
+      end
+    end
+
+    context "when the files key is notzipx" do
+      before { modinfo_data.merge!(files: {notzipx: "https://example.org/foo"}) }
+
+      it "is a warning that will become an error" do
+        expect(modinfo.warnings).to include("Invalid fileType: NOTZIPX (this will become an error in a future release)")
+      end
+
+      it "remains valid" do
+        expect(modinfo).to be_valid
+      end
+    end
+
+    context "when the files key has a leading dot and odd case" do
+      before { modinfo_data.merge!(files: {".ZIP": "https://example.org/foo", ExModZ: "https://example.org/bar"}) }
+
+      it { is_expected.to be_valid }
+
+      it "has no warnings" do
+        expect(modinfo.warnings).to be_empty
+      end
+    end
+
+    context "when files is not a Hash" do
+      before { modinfo_data.merge!(files: ["a"]) }
+
+      it "reports an error instead of raising" do
+        expect(modinfo.errors).to include("Files must be an object")
+      end
+
+      it "does not raise from file_types" do
+        expect(modinfo.file_types).to eq([])
+      end
+    end
+
+    context "when a file URL is not a String" do
+      before { modinfo_data.merge!(files: {zip: 5}) }
+
+      it "reports an error instead of raising" do
+        expect(modinfo.errors).to include("Invalid URL: 5")
+      end
+    end
+
+    context "when a file URL is malformed but matched the old pattern" do
+      before { modinfo_data.merge!(files: {zip: "javascript:alert(1)"}) }
+
+      it "warns that it will become an error" do
+        expect(modinfo.warnings).to include("Invalid URL: javascript:alert(1) (this will become an error in a future release)")
+      end
+    end
+
     context "when file_type is invalid" do
       before { modinfo_data.merge!(files: {foo: "https://example.org/foo"}) }
 
