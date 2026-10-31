@@ -152,10 +152,14 @@ module Icarus
 
         def cascade_delete_repo(repo_name)
           @delete_failures = []
+          @failed_entity_fetches = []
 
-          # Find all modinfo URLs belonging to this repository
-          # Match full "owner/repo" path component, not substring
-          repo_pattern = %r{/#{Regexp.escape(repo_name)}(?=/|$)}
+          # The stored entry may be a full URL; match on the "owner/repo" part
+          owner_repo = repo_name.sub(%r{\Ahttps?://(www\.)?github\.com/}i, "").sub(%r{/+\z}, "")
+
+          # Find all modinfo/toolinfo URLs belonging to this repository. Anchored to the host and the full
+          # "owner/repo" path component so another repo's subdirectory or a similarly named repo can't match.
+          repo_pattern = %r{\Ahttps?://(raw\.githubusercontent\.com|github\.com)/#{Regexp.escape(owner_repo)}/}i
           modinfo_urls = firestore.modinfo.select { |url| url.match?(repo_pattern) }
           toolinfo_urls = firestore.toolinfo.select { |url| url.match?(repo_pattern) }
 
@@ -168,27 +172,19 @@ module Icarus
             return
           end
 
-          # Delete modinfo URLs and their associated mods
-          modinfo_urls.each do |url|
-            puts Paint["  Removing modinfo: #{url}", :black] if verbose?
-            track_delete(:modinfo, url) { firestore.delete(:modinfo, url) }
-
-            # Find and delete associated mods
-            delete_entities_from_url(url, :mod)
-          end
-
-          # Delete toolinfo URLs and their associated tools
-          toolinfo_urls.each do |url|
-            puts Paint["  Removing toolinfo: #{url}", :black] if verbose?
-            track_delete(:toolinfo, url) { firestore.delete(:toolinfo, url) }
-
-            # Find and delete associated tools
-            delete_entities_from_url(url, :tool)
-          end
+          # Delete each URL's entities, then the URL itself, but only if all of its entities went
+          modinfo_urls.each { |url| delete_info_url(url, :modinfo, :mod) }
+          toolinfo_urls.each { |url| delete_info_url(url, :toolinfo, :tool) }
 
           # Report any failures
           report_delete_failures
           report_fetch_failures
+
+          if @delete_failures.any? || @failed_entity_fetches.any?
+            # Keep the repo entry so the removal can be retried; entries still listed would otherwise be orphaned
+            warn Paint["Repository not removed (kept so the removal can be retried): #{repo_name}", :red]
+            exit 1
+          end
 
           # Finally, remove the repository
           if firestore.delete(:repositories, repo_name)
@@ -199,36 +195,54 @@ module Icarus
           end
         end
 
-        def delete_entities_from_url(url, type)
-          # Fetch the modinfo/toolinfo JSON
+        def delete_info_url(url, info_type, type)
+          puts Paint["  Removing #{info_type}: #{url}", :black] if verbose?
+
+          failures_before = @delete_failures.size + @failed_entity_fetches.size
           begin
-            data = retrieve_from_url(url)
-            entities = data[type == :mod ? :mods : :tools] || []
-
-            entities.each do |entity_data|
-              # Find ALL matching entities in Firestore by name and author
-              collection = type == :mod ? firestore.mods : firestore.tools
-              matching_entities = collection.select do |e|
-                e.name == entity_data[:name] && e.author == entity_data[:author]
-              end
-
-              next if matching_entities.empty?
-
-              if matching_entities.size > 1 && verbose?
-                warn Paint["  Note: Found #{matching_entities.size} entities matching '#{entity_data[:name]}' by #{entity_data[:author]}", :yellow]
-              end
-
-              matching_entities.each do |entity|
-                puts Paint["    Removing #{type}: #{entity.name} (ID: #{entity.id})", :black] if verbose?
-                track_delete(type, "#{entity.name} (#{entity.id})") { firestore.delete(type, entity) }
-              end
+            entities_for_url(url, type).each do |entity|
+              puts Paint["    Removing #{type}: #{entity.name} (ID: #{entity.id})", :black] if verbose?
+              track_delete(type, "#{entity.name} (#{entity.id})") { firestore.delete(type, entity) }
             end
           rescue Tools::Sync::RequestFailed, SocketError, IOError, SystemCallError, Timeout::Error,
                  JSON::ParserError => e
-            @failed_entity_fetches ||= []
             @failed_entity_fetches << { url: url, error: e.class.name, message: e.message }
             warn Paint["Warning: Could not fetch #{url} to remove entities: #{e.message}", :yellow]
           end
+
+          # Keep the URL listed while any of its entities remain
+          return if (@delete_failures.size + @failed_entity_fetches.size) > failures_before
+
+          track_delete(info_type, url) { firestore.delete(info_type, url) }
+        end
+
+        # Entities (mods or tools) that came from +url+: the docs the source map attributes to it, plus, for docs
+        # with no recorded source, those matching a name+author in the file. Docs mapped to another URL
+        # (e.g. a fork publishing the same name/author) are never touched.
+        def entities_for_url(url, type)
+          collection = type == :mod ? firestore.mods : firestore.tools
+          sources = firestore.sources(type == :mod ? :mods : :tools)
+
+          entities = collection.select { |e| sources[e.id.to_s] == url }
+          unmapped = collection.reject { |e| sources.key?(e.id.to_s) }
+          return entities if unmapped.empty?
+
+          begin
+            data = retrieve_from_url(url)
+          rescue Tools::Sync::RequestGone
+            # File removed by its author: only the mapped docs can be attributed to it
+            return entities
+          end
+
+          (data[type == :mod ? :mods : :tools] || []).each do |entity_data|
+            matching = unmapped.select { |e| e.name == entity_data[:name] && e.author == entity_data[:author] }
+            if matching.size > 1 && verbose?
+              warn Paint["  Note: Found #{matching.size} entities matching '#{entity_data[:name]}' by #{entity_data[:author]}", :yellow]
+            end
+            entities.concat(matching)
+          end
+
+          entities.uniq(&:id)
         end
 
         def preview_cascade_deletions(repo_name, modinfo_urls, toolinfo_urls)
@@ -254,20 +268,7 @@ module Icarus
         end
 
         def fetch_entities_from_url(url, type)
-          data = retrieve_from_url(url)
-          entity_data_list = data[type == :mod ? :mods : :tools] || []
-
-          collection = type == :mod ? firestore.mods : firestore.tools
-          entities = []
-
-          entity_data_list.each do |entity_data|
-            matching_entities = collection.select do |e|
-              e.name == entity_data[:name] && e.author == entity_data[:author]
-            end
-            entities.concat(matching_entities)
-          end
-
-          entities
+          entities_for_url(url, type)
         rescue Tools::Sync::RequestFailed, SocketError, IOError, SystemCallError, Timeout::Error, JSON::ParserError => e
           warn Paint["Warning: Could not fetch #{url}: #{e.message}", :yellow] if verbose?
           nil
