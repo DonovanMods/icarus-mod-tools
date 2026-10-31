@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## History (reverse chronological order)
 
+### Unreleased
+
+- Update `google-cloud-firestore` to 3.x and `octokit` to 10.x (no API changes affect `imt`)
+- Update development tools (`pry` 0.16, `guard`, `rake`)
+
 ### v3.0.0 - 2026-10-30
 
 **Breaking:** requires Ruby 4.0 or greater. Sync commands now exit 1 on failure, and `imt sync mods`/`tools` refuse a mass delete without `--force`.

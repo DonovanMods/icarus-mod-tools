@@ -31,8 +31,8 @@ Gem::Specification.new do |spec|
 
   # Uncomment to register a new dependency of your gem
   # spec.add_dependency "example-gem", "~> 1.0"
-  spec.add_dependency "google-cloud-firestore", "~> 2.7"
-  spec.add_dependency "octokit", "~> 6.0"
+  spec.add_dependency "google-cloud-firestore", "~> 3.3"
+  spec.add_dependency "octokit", "~> 10.0"
   spec.add_dependency "ostruct", "~> 0.6"
   spec.add_dependency "paint", "~> 2.3"
   spec.add_dependency "thor", "~> 1.2"
