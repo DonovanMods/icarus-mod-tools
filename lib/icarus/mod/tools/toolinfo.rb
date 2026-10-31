@@ -19,6 +19,15 @@ module Icarus
           HASHKEYS.each_with_object({}) { |key, hash| hash[key] = @data[key] }
         end
 
+        def validate
+          return true if @validated
+
+          validate_filetype(fileType)
+          check_url(fileURL, "Invalid fileURL: #{@data[:fileURL] || "blank"}")
+
+          super
+        end
+
         private
 
         def normalize_github_urls_in_data
@@ -32,16 +41,11 @@ module Icarus
         end
 
         def filetype_pattern
-          /(zip|exe)/i
+          /\A\.?(zip|exe)\z/i
         end
 
-        def validate
-          return true if @validated
-
-          validate_filetype(fileType)
-          @errors << "Invalid fileURL: #{@data[:fileURL] || "blank"}" unless validate_url(fileURL)
-
-          super
+        def legacy_filetype_pattern
+          /(zip|exe)/i
         end
       end
     end

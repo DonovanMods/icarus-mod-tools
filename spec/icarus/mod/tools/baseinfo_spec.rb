@@ -150,6 +150,91 @@ RSpec.describe Icarus::Mod::Tools::Baseinfo do
       end
     end
 
+    context "when version has trailing or embedded garbage" do
+      ["1.0 garbage", "abc\n1.0", "1.0\nabc", "1.", "1.0-beta"].each do |version|
+        it "warns for #{version.inspect}" do
+          baseinfo_data.merge!(version:)
+          expect(baseinfo.warnings).to eq(["Version should be a version string"])
+        end
+      end
+
+      it "accepts dotted numeric versions" do
+        baseinfo_data.merge!(version: "1.2.3")
+        expect(baseinfo.warnings).to be_empty
+      end
+    end
+
+    context "when version is not a String" do
+      before { baseinfo_data.merge!(version: 1.0) }
+
+      it "reports an error instead of raising" do
+        expect(baseinfo.errors).to include("Version must be a string")
+      end
+    end
+
+    %w[name author description].each do |key|
+      context "when #{key} is not a String" do
+        before { baseinfo_data.merge!(key.to_sym => 5) }
+
+        it "reports an error instead of raising" do
+          expect(baseinfo.errors).to include("#{key.capitalize} must be a string")
+        end
+      end
+    end
+
+    context "when name is not a String" do
+      before { baseinfo_data.merge!(name: 5) }
+
+      it "still builds uniq_name" do
+        expect(baseinfo.uniq_name).to eq("#{baseinfo_data[:author]}/5")
+      end
+    end
+
+    context "when imageURL is not a String" do
+      before { baseinfo_data.merge!(imageURL: 42) }
+
+      it "reports an error instead of raising" do
+        expect(baseinfo.errors).to include("Invalid URL Imageurl: 42")
+      end
+    end
+
+    context "when the GitHub URL normalizer meets a non-String URL" do
+      it "does not raise on construction" do
+        expect { described_class.new(baseinfo_data.merge(readmeURL: 7)) }.not_to raise_error
+      end
+    end
+
+    %w[imageURL readmeURL].each do |key|
+      ["see http://x y", "javascript:alert(1)", "mailto:a", "ftp://example.com/a.png", "http:///nohost"].each do |url|
+        context "when #{key} is #{url.inspect}" do
+          before { baseinfo_data.merge!(key.to_sym => url) }
+
+          it "is not an error (legacy tolerance)" do
+            expect(baseinfo.errors).to be_empty
+          end
+
+          it "warns that it will become an error" do
+            expect(baseinfo.warnings).to include(a_string_matching(/Invalid URL #{key.capitalize}: .*will become an error in a future release/))
+          end
+        end
+      end
+    end
+
+    context "when an unknown accessor is called" do
+      it "responds to empty? for Firestore#update's payload guard" do
+        expect(baseinfo.empty?).to be false
+      end
+
+      it "raises NoMethodError" do
+        expect { baseinfo.nmae }.to raise_error(NoMethodError)
+      end
+
+      it "returns nil for a known key that is absent" do
+        baseinfo_data.delete(:compatibility)
+        expect(baseinfo.compatibility).to be_nil
+      end
+    end
+
     %w[name author description].each do |key|
       context "when #{key} is blank" do
         before { baseinfo_data.merge!(key.to_sym => "") }
