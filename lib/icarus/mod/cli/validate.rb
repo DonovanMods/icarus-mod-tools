@@ -23,7 +23,7 @@ module Icarus
             validator = Icarus::Mod::Tools::Validator.new(type)
 
             puts "Validating Entries..." if verbose?
-            max_length = validator.array.map { |info| info.uniq_name.length }.max + 1
+            max_length = (validator.array.map { |info| info.uniq_name.length }.max || 0) + 1
 
             # rubocop:disable Lint/FormatParameterMismatch
             validator.array.each do |info|

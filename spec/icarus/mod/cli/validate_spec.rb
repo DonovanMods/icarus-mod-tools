@@ -125,6 +125,17 @@ RSpec.describe Icarus::Mod::CLI::Validate do
   end
 
   describe "#validate (private method)" do
+    context "with an empty list" do
+      before do
+        allow(validator_double).to receive(:array).and_return([])
+      end
+
+      it "exits with code 0 without raising" do
+        expect { validate_command.modinfo }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
+      end
+    end
+
+
     context "with mixed valid and invalid entries" do
       before do
         allow(validator_double).to receive(:array).and_return([valid_modinfo, invalid_modinfo])

@@ -67,7 +67,8 @@ module Icarus
             items = Firestore.new.send(type)
 
             # Filter by field
-            items.select! { |item| item.send(filter_field).downcase =~ /#{filter_value&.downcase}/ } if filter_field
+            # Case-insensitive substring match; the value is literal text, not a regex
+            items.select! { |item| item.send(filter_field).to_s.downcase.include?(filter_value.to_s.downcase) } if filter_field
 
             if items.empty?
               puts "no entries found" if verbose?
@@ -90,16 +91,16 @@ module Icarus
             end
 
             # Sort by field, optionally subsorting by name
-            ((sort_field == :name) ? items.sort_by(&:name) : items.sort_by { |item| [item.send(sort_field), item.name] }).each do |item|
+            ((sort_field == :name) ? items.sort_by(&:name) : items.sort_by { |item| [item.send(sort_field).to_s, item.name.to_s] }).each do |item|
               data_format = "%-<name>50s %-<author>20s v%-<version>10s%-<updated_at>20s"
               data_format += " %-<id>20s %<description>s" if verbose > 1
 
-              puts format(data_format, item.to_h.merge(id: item.id, updated_at: item.updated_at.strftime("%Y-%m-%d %H:%M:%S")))
+              puts format(data_format, item.to_h.merge(id: item.id, updated_at: item.updated_at&.strftime("%Y-%m-%d %H:%M:%S")))
             end
 
             puts "Total: #{items.count}" if verbose?
           rescue Icarus::Mod::Tools::Error => e
-            puts e.message
+            warn e.message
             exit 1
           end
         end

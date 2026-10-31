@@ -166,11 +166,82 @@ RSpec.describe Icarus::Mod::CLI::List do
       end
     end
 
+    context "with a filter value containing regex metacharacters" do
+      let(:options) { { verbose: [true], sort: "name", filter: ["name", "(Test"] } }
+
+      it "treats the value literally instead of raising" do
+        expect { list_command.mods }.to output(/no entries found/).to_stdout
+      end
+    end
+
+    context "with a filter on a field that is nil for some entries" do
+      let(:options) { { verbose: [true], sort: "name", filter: ["compatibility", "1"] } }
+
+      before do
+        allow(firestore_double).to receive(:mods).and_return([Icarus::Mod::Tools::Modinfo.new(modinfo_data.merge(compatibility: nil), id: "nil-id", updated: Time.now)])
+      end
+
+      it "does not raise" do
+        expect { list_command.mods }.to output(/no entries found/).to_stdout
+      end
+    end
+
+    context "with a filter on a non-String field" do
+      let(:options) { { verbose: [true], sort: "name", filter: ["files", "pak"] } }
+
+      it "matches against the string form of the field" do
+        expect { list_command.mods }.not_to raise_error
+      end
+    end
+
+    context "with a case-insensitive filter" do
+      let(:options) { { verbose: [true], sort: "name", filter: ["name", "TEST icarus"] } }
+
+      it "matches regardless of case" do
+        expect { list_command.mods }.to output(/Test Icarus Mod/).to_stdout
+      end
+    end
+
+    context "when sorting by a field that is nil in some entries" do
+      let(:options) { { verbose: [true], sort: "compatibility", filter: [] } }
+      let(:modinfo2) { Icarus::Mod::Tools::Modinfo.new(modinfo_data.merge(name: "Alpha Mod", compatibility: "1.2"), id: "id-2", updated: Time.now) }
+      let(:modinfo3) { Icarus::Mod::Tools::Modinfo.new(modinfo_data.merge(name: "Beta Mod", compatibility: nil), id: "id-3", updated: Time.now) }
+
+      before do
+        allow(firestore_double).to receive(:mods).and_return([modinfo2, modinfo3])
+      end
+
+      it "does not raise" do
+        expect { list_command.mods }.to output(/Alpha Mod/).to_stdout
+      end
+    end
+
+    context "when sorting by a Hash field" do
+      let(:options) { { verbose: [true], sort: "files", filter: [] } }
+      let(:modinfo2) { Icarus::Mod::Tools::Modinfo.new(modinfo_data.merge(name: "Alpha Mod", files: {pak: "https://example.com/other.pak"}), id: "id-2", updated: Time.now) }
+
+      before do
+        allow(firestore_double).to receive(:mods).and_return([modinfo, modinfo2])
+      end
+
+      it "does not raise" do
+        expect { list_command.mods }.to output(/Alpha Mod/).to_stdout
+      end
+    end
+
+    context "when an entry has no updated_at" do
+      let(:modinfo) { Icarus::Mod::Tools::Modinfo.new(modinfo_data, id: "test-id") }
+
+      it "does not raise" do
+        expect { list_command.mods }.to output(/Test Icarus Mod/).to_stdout
+      end
+    end
+
     context "with invalid sort field" do
       let(:options) { { verbose: [true], sort: "invalid_field", filter: [] } }
 
       it "raises an error and exits" do
-        expect { list_command.mods }.to output(/Invalid sort field/).to_stdout.and raise_error(SystemExit)
+        expect { list_command.mods }.to output(/Invalid sort field/).to_stderr.and raise_error(SystemExit)
       end
     end
 
@@ -178,7 +249,7 @@ RSpec.describe Icarus::Mod::CLI::List do
       let(:options) { { verbose: [true], sort: "name", filter: ["invalid_field", "value"] } }
 
       it "raises an error and exits" do
-        expect { list_command.mods }.to output(/Invalid filter field/).to_stdout.and raise_error(SystemExit)
+        expect { list_command.mods }.to output(/Invalid filter field/).to_stderr.and raise_error(SystemExit)
       end
     end
 
@@ -186,7 +257,7 @@ RSpec.describe Icarus::Mod::CLI::List do
       let(:options) { { verbose: [true], sort: "name", filter: ["only_one_value"] } }
 
       it "raises an error and exits" do
-        expect { list_command.mods }.to output(/Invalid filter option/).to_stdout.and raise_error(SystemExit)
+        expect { list_command.mods }.to output(/Invalid filter option/).to_stderr.and raise_error(SystemExit)
       end
     end
   end

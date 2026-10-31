@@ -127,6 +127,13 @@ RSpec.describe Icarus::Mod::Config do
     it "returns an OpenStruct" do
       expect(described_class.firebase).to be_an(OpenStruct)
     end
+
+    it "reads the config on demand when it has not been read yet" do
+      described_class.instance_variable_set(:@config, nil)
+      allow(described_class).to receive(:config_file).and_return(config_file.path)
+
+      expect(described_class.firebase.credentials.project_id).to eq("test-project")
+    end
   end
 
   describe ".github" do
@@ -142,6 +149,13 @@ RSpec.describe Icarus::Mod::Config do
 
     it "returns an OpenStruct" do
       expect(described_class.github).to be_an(OpenStruct)
+    end
+
+    it "reads the config on demand when it has not been read yet" do
+      described_class.instance_variable_set(:@config, nil)
+      allow(described_class).to receive(:config_file).and_return(config_file.path)
+
+      expect(described_class.github.oauth_token).to eq("test-token")
     end
   end
 end

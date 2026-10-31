@@ -19,11 +19,11 @@ module Icarus
         end
 
         def firebase
-          @config.firebase
+          config.firebase
         end
 
         def github
-          @config.github
+          config.github
         end
 
         private
