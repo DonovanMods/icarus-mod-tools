@@ -1,6 +1,8 @@
 # frozen_string_literal: true
 
 require "tools/validator"
+require "tools/repo_check"
+require "tools/repo_report"
 
 module Icarus
   module Mod
@@ -15,6 +17,26 @@ module Icarus
         desc "toolinfo", "Reads Toolinfo data from 'meta/toolinfo/list' and Validates syntax of toolfiles"
         def toolinfo
           validate(:toolinfo)
+        end
+
+        desc "repo OWNER/REPO", "Vets a GitHub repo (and its modinfo/toolinfo links) before it is added to 'meta/repos/list'; read-only"
+        method_option :json, type: :boolean, default: false, desc: "Print the result as JSON"
+        long_desc <<~DESC
+          Exits 0 when the repo is valid, 1 when it is not, and 2 on usage, config or GitHub API errors.
+          Never writes to Firestore and does not need it; only the GitHub token from the config is used.
+        DESC
+        def repo(name)
+          result = Icarus::Mod::Tools::RepoCheck.new(name).call
+
+          if options[:json]
+            puts JSON.generate(result)
+          else
+            Icarus::Mod::Tools::RepoReport.new(result, verbose:).print
+          end
+          exit(result[:valid] ? 0 : 1)
+        rescue Icarus::Mod::Tools::RepoCheck::Error => e
+          warn "Error: #{e.message}"
+          exit 2
         end
 
         no_commands do

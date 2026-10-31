@@ -160,6 +160,20 @@ Options:
 
 **Note**: Sync operations automatically convert GitHub URLs to the correct `raw.githubusercontent.com` format for direct downloads. If you're using GitHub URLs in `modinfo.json` or `toolinfo.json` files, you can use either `/blob/` or `/raw/` formats and they will be automatically converted. Warnings will be displayed when URLs are auto-fixed so you can update your source files.
 
+#### `imt validate`
+
+```sh
+Commands:
+  imt validate help [COMMAND]  # Describe subcommands or one specific subcommand
+  imt validate modinfo         # Reads modinfo data from 'meta/modinfo/list' and Validates syntax of modfiles
+  imt validate repo OWNER/REPO # Vets a GitHub repo before it is added to 'meta/repos/list'
+  imt validate toolinfo        # Reads Toolinfo data from 'meta/toolinfo/list' and Validates syntax of toolfiles
+```
+
+`imt validate repo OWNER/REPO [--json]` (a `github.com` URL also works) vets a repo someone asked to have added, before you add it. It is read-only, never touches Firestore, and needs only the GitHub token from the config. It checks that the repo exists, is public and is not archived; finds `modinfo.json` and/or `toolinfo.json` (at least one is required); validates every entry; and requests every file, image and readme link (following up to 5 redirects) to confirm it resolves. A broken download link is an error, a broken image or readme link is a warning, and a download hosted outside GitHub or a tool shipping an `.exe` is a warning. Use `-v`/`-vv` for more detail, or `--json` to print the machine-readable result (`repo`, `exists`, `private`, `archived`, `default_branch`, `info_files`, `problems`, `entries`, `valid`) and nothing else on stdout.
+
+**Exit status**: 0 when the repo is valid, 1 when it is not, 2 on usage, config or GitHub API errors (for example a rate limit or bad token).
+
 ## Development
 
 After checking out the repo, run `bin/setup` to install dependencies. Then, run `rake test` to run the tests. You can also run `bin/console` for an interactive prompt that will allow you to experiment.
