@@ -21,6 +21,18 @@ All notable changes to this project will be documented in this file.
 - Fix a crash on a first run against an empty database (missing `meta` documents)
 - Fix source URLs losing their query string, and a malformed URL crashing the sync instead of being skipped
 - Save recorded sources even when a sync fails partway through, so the next run can still protect those entries
+- Fix `imt remove repos` removing the wrong entries
+  - Matches a repo's `modinfo.json`/`toolinfo.json` URLs only on the GitHub host and exact `owner/repo` (case-insensitive); before, a same-named subdirectory in someone else's repo matched
+  - Deletes only the mods and tools that `meta/mod_sources`/`meta/tool_sources` attribute to the repo's URLs (falling back to name and author for entries with no recorded source), so a fork publishing the same name and author keeps its entry
+  - Cascades for repos stored as full URLs too
+  - Keeps the repo entry and exits 1 when any delete or fetch fails, so the removal can be retried
+- Tighten validation: file types, URLs (http/https with a host) and versions are now matched exactly; input the old checks accepted (`notzipx`, `javascript:` URLs, `1.0 garbage`) is a warning for now and will become an error in a future release
+- Fix non-string values (`"version": 1.0`, `"name": 5`, numeric URLs, `files` that is not an object) crashing validation; they are now reported as errors
+- Fix `Toolinfo#validate` not being public, and unknown attribute names on mod/tool entries silently returning nil instead of raising
+- Fix `imt list mods`/`tools` crashing on `--filter` values containing regex characters, on empty or non-text fields, on `--sort files` or fields missing from some entries, and on entries with no update time; filters are now case-insensitive substring matches and errors go to stderr
+- Fix `imt validate` crashing on an empty list, and `imt` crashing on a malformed config file (it now prints an error and exits 1)
+- Fix the GitHub file cache returning a top-level listing for recursive or sub-path lookups, and `find("modinfo.json")` matching names like `my_modinfo.json.bak`
+- Fix `imt add`: `mod` validates every entry before writing anything and reports bad JSON or a missing `mods` list; every `add` command exits 1 on failure; add `--dry-run`
 
 ### v2.7.0 - 2026-10-30
 
