@@ -42,38 +42,41 @@ module Icarus
           exit 2
         end
 
-        no_commands do
-          def validate(type)
-            exit_code = 0
-            validator = Icarus::Mod::Tools::Validator.new(type)
+        private
 
-            puts "Validating Entries..." if verbose?
-            max_length = (validator.array.map { |info| info.uniq_name.length }.max || 0) + 1
+        def validate(type)
+          exit_code = 0
+          hidden = 0
+          validator = Icarus::Mod::Tools::Validator.new(type)
 
-            validator.array.each do |info|
-              print Paint[format("%s %-#{max_length}s", "Running validation steps on", info.uniq_name), :cyan, :bright] if verbose > 1
+          puts "Validating Entries..." if verbose?
+          max_length = (validator.array.map { |info| info.uniq_name.length }.max || 0) + 1
 
-              info.validate
-              warnings = verbose > 1 ? info.warnings : info.warnings.grep_v(NOISY_WARNING)
+          validator.array.each do |info|
+            print Paint[format("%s %-#{max_length}s", "Running validation steps on", info.uniq_name), :cyan, :bright] if verbose > 1
 
-              unless info.errors? || warnings.any?
-                puts Paint["SUCCESS", :green, :bright] if verbose > 1
-                next
-              end
+            info.validate
+            warnings = verbose > 1 ? info.warnings : info.warnings.grep_v(NOISY_WARNING)
+            hidden += info.warnings.size - warnings.size
 
-              if info.errors?
-                exit_code = 1
-                puts Paint["ERROR", :red, :bright] if verbose? && verbose > 1
-                puts info.errors.map { |error| Paint["#{error} in #{info.uniq_name}", :red] }.join("\n")
-                puts "\n" if verbose > 1
-              end
+            unless info.errors? || warnings.any?
+              puts Paint["SUCCESS", :green, :bright] if verbose > 1
+              next
+            end
 
-              puts Paint["WARNING", :yellow, :bright] if warnings.any? && verbose > 1
-              puts warnings.map { |warning| Paint["#{warning} in #{info.uniq_name}", :yellow] }.join("\n")
+            if info.errors?
+              exit_code = 1
+              puts Paint["ERROR", :red, :bright] if verbose? && verbose > 1
+              puts info.errors.map { |error| Paint["#{error} in #{info.uniq_name}", :red] }.join("\n")
               puts "\n" if verbose > 1
             end
-            exit exit_code
+
+            puts Paint["WARNING", :yellow, :bright] if warnings.any? && verbose > 1
+            puts warnings.map { |warning| Paint["#{warning} in #{info.uniq_name}", :yellow] }.join("\n")
+            puts "\n" if verbose > 1
           end
+          puts "#{hidden} URL/auto-fix warning#{"s" unless hidden == 1} hidden; run with -v to see them" if hidden.positive? && verbose?
+          exit exit_code
         end
       end
     end

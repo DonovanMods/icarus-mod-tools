@@ -44,6 +44,10 @@ RSpec.describe Icarus::Mod::CLI::Validate do
       it "exits with code 0" do
         expect { validate_command.modinfo }.to raise_error(SystemExit) { |e| expect(e.status).to eq(0) }
       end
+
+      it "prints no hidden-warnings summary" do
+        expect { validate_command.modinfo }.to output("Validating Entries...\n").to_stdout.and raise_error(SystemExit)
+      end
     end
 
     context "when entries have errors" do
@@ -88,10 +92,17 @@ RSpec.describe Icarus::Mod::CLI::Validate do
         allow(validator_double).to receive(:array).and_return([noisy_modinfo])
       end
 
-      it "hides them without -v" do
-        expect { validate_command.modinfo }.to output("Validating Entries...\n").to_stdout.and raise_error(SystemExit) { |e|
+      it "hides them without -v and says how many were hidden" do
+        summary = "Validating Entries...\n2 URL/auto-fix warnings hidden; run with -v to see them\n"
+        expect { validate_command.modinfo }.to output(summary).to_stdout.and raise_error(SystemExit) { |e|
           expect(e.status).to eq(0)
         }
+      end
+
+      it "uses the singular for one hidden warning" do
+        one_warning = Icarus::Mod::Tools::Modinfo.new(modinfo_data.merge(readmeURL: "https://example.com/read me.md"))
+        allow(validator_double).to receive(:array).and_return([one_warning])
+        expect { validate_command.modinfo }.to output(%r{^1 URL/auto-fix warning hidden;}).to_stdout.and raise_error(SystemExit)
       end
 
       context "with -v" do
@@ -99,6 +110,19 @@ RSpec.describe Icarus::Mod::CLI::Validate do
 
         it "shows them" do
           expect { validate_command.modinfo }.to output(/Auto-fixed.*Invalid URL Readmeurl/m).to_stdout.and raise_error(SystemExit)
+        end
+
+        it "prints no hidden-warnings summary" do
+          no_summary = satisfy { |out| !out.include?("hidden") }
+          expect { validate_command.modinfo }.to output(no_summary).to_stdout.and raise_error(SystemExit)
+        end
+      end
+
+      context "with --no-verbose" do
+        let(:options) { { verbose: [true, false] } }
+
+        it "prints nothing" do
+          expect { validate_command.modinfo }.to output("").to_stdout.and raise_error(SystemExit)
         end
       end
     end
