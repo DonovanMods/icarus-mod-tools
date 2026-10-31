@@ -27,6 +27,13 @@ RSpec.describe Icarus::Mod::Firestore do
     )
   end
 
+  # FieldValue sentinels do not compare equal, so match them by type and value
+  def field_value(type, *values)
+    satisfy("FieldValue.#{type}(#{values.join(', ')})") do |value|
+      value.is_a?(Google::Cloud::Firestore::FieldValue) && value.type == type && (values.empty? || value.value == values)
+    end
+  end
+
   before do
     allow(collection_double).to receive(:get).and_return([])
     allow(collection_double).to receive(:add).and_return(document_ref_double)
@@ -76,6 +83,16 @@ RSpec.describe Icarus::Mod::Firestore do
 
     it "returns the list of modinfo URLs" do
       expect(firestore.modinfo).to eq(modinfo_list)
+    end
+
+    it "is empty when the meta doc does not exist yet" do
+      allow(document_double).to receive(:get).and_return(instance_double(Google::Cloud::Firestore::DocumentSnapshot, missing?: true))
+      expect(firestore.modinfo).to eq([])
+    end
+
+    it "is empty when the meta doc has no list" do
+      allow(document_double).to receive(:get).and_return(OpenStruct.new(list: nil))
+      expect(firestore.modinfo).to eq([])
     end
   end
 
@@ -191,9 +208,14 @@ RSpec.describe Icarus::Mod::Firestore do
         end
       end
 
-      it "merges with existing modinfo and updates" do
+      it "adds the URL with a server-side union, so concurrent writers keep each other's additions" do
         firestore.update(:modinfo, new_modinfo)
-        expect(document_double).to have_received(:set).with({ list: [existing_modinfo.first, new_modinfo] }, merge: false)
+        expect(document_double).to have_received(:set).with({ list: field_value(:array_union, new_modinfo) }, merge: true)
+      end
+
+      it "refreshes the cached list, so a later stage of `sync all` sees the new URL" do
+        firestore.update(:modinfo, new_modinfo)
+        expect(firestore.modinfo).to eq([existing_modinfo.first, new_modinfo])
       end
 
       it "returns true on success" do
@@ -202,7 +224,8 @@ RSpec.describe Icarus::Mod::Firestore do
 
       it "keeps existing entries missing from the payload (a transiently failed repo keeps its URL)" do
         firestore.update(:modinfo, [new_modinfo])
-        expect(document_double).to have_received(:set).with({ list: [existing_modinfo.first, new_modinfo] }, merge: false)
+        expect(document_double).to have_received(:set).with({ list: field_value(:array_union, new_modinfo) }, merge: true)
+        expect(firestore.modinfo).to include(existing_modinfo.first)
       end
     end
 
@@ -211,7 +234,7 @@ RSpec.describe Icarus::Mod::Firestore do
 
       it "updates toolinfo list" do
         firestore.update(:toolinfo, new_toolinfo)
-        expect(document_double).to have_received(:set).with({ list: [new_toolinfo] }, merge: false)
+        expect(document_double).to have_received(:set).with({ list: field_value(:array_union, new_toolinfo) }, merge: true)
       end
     end
 
@@ -220,7 +243,7 @@ RSpec.describe Icarus::Mod::Firestore do
 
       it "updates repositories list" do
         firestore.update(:repositories, repos_payload)
-        expect(document_double).to have_received(:set).with({ list: repos_payload }, merge: false)
+        expect(document_double).to have_received(:set).with({ list: field_value(:array_union, *repos_payload) }, merge: true)
       end
     end
 
@@ -393,8 +416,8 @@ RSpec.describe Icarus::Mod::Firestore do
     context "with merge option" do
       let(:new_modinfo) { "https://new.com/modinfo.json" }
 
-      it "passes merge option to set" do
-        firestore.update(:modinfo, new_modinfo, merge: true)
+      it "always merges a meta list (a plain set would replace the list with the payload)" do
+        firestore.update(:modinfo, new_modinfo, merge: false)
         expect(document_double).to have_received(:set).with(hash_including(:list), merge: true)
       end
     end
@@ -440,16 +463,23 @@ RSpec.describe Icarus::Mod::Firestore do
     end
 
     describe "#record_source and #save_sources" do
-      it "writes the whole map once, after recording" do
+      it "writes only the changed entries once, after recording, merged so other hosts' entries survive" do
         firestore.record_source(:mods, "mod-c", "https://example.com/u3/modinfo.json")
         firestore.record_source(:mods, "mod-a", "https://example.com/moved/modinfo.json")
         expect(sources_doc).not_to have_received(:set)
 
         firestore.save_sources(:mods)
         expect(sources_doc).to have_received(:set).with(
-          { sources: { "mod-a" => "https://example.com/moved/modinfo.json", "mod-b" => "https://example.com/u2/modinfo.json",
-                       "mod-c" => "https://example.com/u3/modinfo.json" } }, merge: false
+          { sources: { "mod-a" => "https://example.com/moved/modinfo.json", "mod-c" => "https://example.com/u3/modinfo.json" } },
+          merge: true
         ).once
+      end
+
+      it "does not write the same changes twice" do
+        firestore.record_source(:mods, "mod-c", "https://example.com/u3/modinfo.json")
+        firestore.save_sources(:mods)
+        firestore.save_sources(:mods)
+        expect(sources_doc).to have_received(:set).once
       end
 
       it "does not write when nothing changed" do
@@ -462,8 +492,8 @@ RSpec.describe Icarus::Mod::Firestore do
     describe "#delete" do
       it "drops a deleted doc's entry and saves the map" do
         firestore.delete(:mod, instance_double(Icarus::Mod::Tools::Modinfo, id: "mod-a"))
-        expect(sources_doc).to have_received(:set)
-          .with({ sources: { "mod-b" => "https://example.com/u2/modinfo.json" } }, merge: false)
+        expect(sources_doc).to have_received(:set).with({ sources: { "mod-a" => field_value(:delete) } }, merge: true)
+        expect(firestore.sources(:mods)).to eq("mod-b" => "https://example.com/u2/modinfo.json")
       end
 
       it "does not write the map for an unmapped doc" do
@@ -475,10 +505,7 @@ RSpec.describe Icarus::Mod::Firestore do
     describe "#move_source" do
       it "gives the keeper the source of the doc whose data it took, and saves" do
         firestore.move_source(:mod, from: "mod-b", to: "mod-a")
-        expect(sources_doc).to have_received(:set).with(
-          { sources: { "mod-a" => "https://example.com/u2/modinfo.json", "mod-b" => "https://example.com/u2/modinfo.json" } },
-          merge: false
-        )
+        expect(sources_doc).to have_received(:set).with({ sources: { "mod-a" => "https://example.com/u2/modinfo.json" } }, merge: true)
       end
 
       it "leaves the keeper's mapping alone when the source doc has none" do
@@ -563,7 +590,8 @@ RSpec.describe Icarus::Mod::Firestore do
 
       it "removes the item from the list" do
         firestore.delete(:modinfo, "https://delete.com/modinfo.json")
-        expect(document_double).to have_received(:set).with({ list: ["https://keep.com/modinfo.json"] })
+        expect(document_double).to have_received(:set)
+          .with({ list: field_value(:array_delete, "https://delete.com/modinfo.json") }, merge: true)
       end
 
       it "invalidates the cache" do
@@ -590,7 +618,8 @@ RSpec.describe Icarus::Mod::Firestore do
 
       it "removes the item from the list" do
         firestore.delete(:toolinfo, "https://delete.com/toolinfo.json")
-        expect(document_double).to have_received(:set).with({ list: ["https://keep.com/toolinfo.json"] })
+        expect(document_double).to have_received(:set)
+          .with({ list: field_value(:array_delete, "https://delete.com/toolinfo.json") }, merge: true)
       end
     end
 
@@ -603,7 +632,7 @@ RSpec.describe Icarus::Mod::Firestore do
 
       it "removes the repository from the list" do
         firestore.delete(:repositories, "delete/repo")
-        expect(document_double).to have_received(:set).with({ list: ["keep/repo"] })
+        expect(document_double).to have_received(:set).with({ list: field_value(:array_delete, "delete/repo") }, merge: true)
       end
     end
 

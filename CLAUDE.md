@@ -50,7 +50,7 @@ The tool implements a two-stage sync pipeline:
 
 All operations support `--dry-run` for safe testing.
 
-Deletion contract (#16): stage 2 deletes a doc only when no info file still lists it. `Sync::Helpers#retrieve_from_url` raises `RequestGone` for 404/410 (author removed the file: delete) and `RequestTransient` for everything else; invalid JSON also counts as transient. Docs do not record their source URL; instead `meta/mod_sources` / `meta/tool_sources` (Firestore, shared across sync hosts) map doc ID => source URL, written by `Sync::Mods/Tools#update` + `save_sources` and pruned by `Firestore#delete`. A transient failure protects only the docs mapped to that URL; unmapped docs are kept while any URL failed. Stage 1 never drops list entries (`Firestore#update` unions), and a repo whose GitHub search fails transiently is skipped. New docs get a stable ID (`Firestore#stable_id`); `imt sync cleanup` keeps the oldest duplicate and copies the newest data onto it.
+Deletion contract (#16): stage 2 deletes a doc only when no info file still lists it. `Sync::Helpers#retrieve_from_url` raises `RequestGone` for 404/410 (author removed the file: delete) and `RequestTransient` for everything else; invalid JSON also counts as transient. Docs do not record their source URL; instead `meta/mod_sources` / `meta/tool_sources` (Firestore, shared across sync hosts) map doc ID => source URL, written by `Sync::Mods/Tools#update` + `save_sources` and pruned by `Firestore#delete`. A transient failure protects only the docs mapped to that URL; unmapped docs are kept while any URL failed. Stage 1 never drops list entries (`Firestore#update` unions server-side with `FieldValue.array_union`; source maps are written per key with `merge: true`, so concurrent hosts don't overwrite each other). Stage 2 refuses to delete more than 25% of a collection (min 5) or empty it without `--force`, and a repo whose GitHub search fails transiently is skipped. New docs get a stable ID (`Firestore#stable_id`); `imt sync cleanup` keeps the oldest duplicate and copies the newest data onto it.
 
 ### Core Components
 
@@ -72,8 +72,7 @@ Deletion contract (#16): stage 2 deletes a doc only when no info file still list
 
 - `ModinfoList`: GitHub → meta/modinfo sync
 - `ToolinfoList`: GitHub → meta/toolinfo sync
-- `Mods`: meta/modinfo → mods sync
-- `Tools`: meta/toolinfo → tools sync
+- `Entities`: shared meta → entity sync; `Mods` (meta/modinfo → mods) and `Tools` (meta/toolinfo → tools) only set `TYPE`/`INFO`/`ENTITY`
 - `Helpers`: HTTP utilities with custom SSL verification for Ruby 3.4+ CRL issues
 
 **External Services** (`lib/icarus/mod/`)

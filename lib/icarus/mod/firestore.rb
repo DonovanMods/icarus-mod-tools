@@ -62,17 +62,20 @@ module Icarus
         return if map[id.to_s] == url
 
         map[id.to_s] = url
-        sources_changed << pluralize(type)
+        sources_changed(type) << id.to_s
       end
 
-      # Writes the source map if it changed since it was read or last saved
+      # Writes the entries changed since the map was read or last saved. Only those keys are written (merged),
+      # so entries another sync host recorded meanwhile are kept.
       def save_sources(type)
-        key = pluralize(type)
-        return true unless sources_changed.include?(key)
+        changed = sources_changed(type)
+        return true if changed.empty?
 
-        response = @client.doc(sources_path(key)).set({ sources: sources(key) }, merge: false)
+        map = sources(type)
+        entries = changed.to_h { |id| [id, map.fetch(id) { Google::Cloud::Firestore::FieldValue.delete }] }
+        response = @client.doc(sources_path(pluralize(type))).set({ sources: entries }, merge: true)
         success = response.is_a?(Google::Cloud::Firestore::CommitResponse::WriteResult)
-        sources_changed.delete(key) if success
+        changed.clear if success
 
         success
       end
@@ -102,11 +105,8 @@ module Icarus
         raise "You must specify a payload to update" if payload&.empty? || payload.nil?
 
         response = case type.to_sym
-                   when :modinfo, :toolinfo
-                     update_array = (send(type) + [payload]).flatten.uniq
-                     @client.doc(collections.meta.send(type)).set({ list: update_array }, merge:) if update_array.any?
-                   when :repositories
-                     @client.doc(collections.meta.repositories).set({ list: payload }, merge:)
+                   when :modinfo, :toolinfo, :repositories
+                     update_list(type, [payload].flatten.uniq)
                    when :mod, :tool
                      create_or_update(pluralize(type), payload, merge:)
                    else
@@ -141,11 +141,13 @@ module Icarus
             forget_source(type, payload.id)
           end
         when :modinfo, :toolinfo, :repositories
-          update_array = (send(type) - [payload]).flatten.uniq
-
-          response = @client.doc(collections.meta.send(type)).set({ list: update_array })
+          # Removed on the server, so entries another host added meanwhile are kept
+          values = [payload].flatten
+          response = @client.doc(collections.meta.send(type)).set(
+            { list: Google::Cloud::Firestore::FieldValue.array_delete(*values) }, merge: true
+          )
           # Invalidate cache if Firestore update was successful
-          instance_variable_set(:"@#{type}", update_array) if response.is_a?(Google::Cloud::Firestore::CommitResponse::WriteResult)
+          instance_variable_set(:"@#{type}", send(type) - values) if response.is_a?(Google::Cloud::Firestore::CommitResponse::WriteResult)
         else
           raise "Invalid type: #{type}"
         end
@@ -158,7 +160,8 @@ module Icarus
       def list(type)
         case type.to_sym
         when :modinfo, :toolinfo, :repositories
-          @client.doc(collections.meta.send(type)).get[:list]
+          snapshot = @client.doc(collections.meta.send(type)).get
+          snapshot.missing? ? [] : snapshot[:list] || []
         when :mods, :tools
           @client.col(collections.send(type)).get.map do |doc|
             klass = type == :mods ? Icarus::Mod::Tools::Modinfo : Icarus::Mod::Tools::Toolinfo
@@ -167,6 +170,17 @@ module Icarus
         else
           raise "Invalid type: #{type}"
         end
+      end
+
+      # Adds +values+ to a meta list. The union happens on the server, so two sync hosts (or a sync and `imt add`)
+      # writing at once keep each other's additions. The cache is refreshed so a later stage of `sync all` sees them.
+      def update_list(type, values)
+        response = @client.doc(collections.meta.send(type)).set(
+          { list: Google::Cloud::Firestore::FieldValue.array_union(*values) }, merge: true
+        )
+        instance_variable_set(:"@#{type}", (send(type) + values).uniq) if response.is_a?(Google::Cloud::Firestore::CommitResponse::WriteResult)
+
+        response
       end
 
       def create_or_update(type, payload, merge:)
@@ -195,12 +209,14 @@ module Icarus
       def forget_source(type, id)
         return unless sources(type).delete(id.to_s)
 
-        sources_changed << pluralize(type)
+        sources_changed(type) << id.to_s
         save_sources(type)
       end
 
-      def sources_changed
-        @sources_changed ||= Set.new
+      # Doc IDs whose source entry changed (or was removed) since the map was read or last saved
+      def sources_changed(type)
+        @sources_changed ||= Hash.new { |hash, key| hash[key] = Set.new }
+        @sources_changed[pluralize(type)]
       end
 
       def sources_path(collection)

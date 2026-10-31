@@ -104,6 +104,22 @@ RSpec.describe Icarus::Mod::Tools::Sync::Helpers do
       end
     end
 
+    context "when the URL has a query string" do
+      let(:url) { "https://raw.githubusercontent.com/Donovan522/Icarus-Mods/main/modinfo.json?token=abc" }
+
+      it "requests the path with its query" do
+        allow(http_client).to receive(:get).with("/Donovan522/Icarus-Mods/main/modinfo.json?token=abc").and_return(success_response)
+        expect(sync_helpers.retrieve_from_url(url)).to eq(modinfo_array)
+      end
+    end
+
+    context "when the URL passes the loose URI check but cannot be parsed" do
+      it "raises a non-transient Invalid URI error instead of crashing" do
+        expect { sync_helpers.retrieve_from_url("see https://example.com/modinfo.json") }
+          .to(raise_error(Icarus::Mod::Tools::Sync::RequestFailed, /Invalid URI/) { |error| expect(error).not_to be_transient })
+      end
+    end
+
     context "when the URL is nil" do
       it "raises an Invalid URI error" do
         expect { sync_helpers.retrieve_from_url(nil) }

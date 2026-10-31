@@ -12,6 +12,15 @@ All notable changes to this project will be documented in this file.
 - Declare `ostruct` as a runtime dependency; it is no longer a default gem on Ruby 4.0, so a plain `gem install` could fail to load the config
 - Update `faraday`, `jwt`, `addressable` and `concurrent-ruby` to clear known security advisories
 - Remove the unused, stale RBS signatures under `sig/`
+- Fix `imt sync all` not creating mods/tools for a `modinfo.json`/`toolinfo.json` found earlier in the same run; the new URL was only picked up on the next run
+- Fix two sync hosts (or a sync and `imt add`/`remove`) running at once overwriting each other's changes to `meta/modinfo`, `meta/toolinfo`, `meta/repos` and the source maps
+- Add a mass-delete brake: `imt sync mods`/`tools` refuses to delete more than 25% of a collection (at least 5 entries), or to empty it, unless run with `--force`
+- Fix `imt sync` commands exiting 0 on failure; they now exit 1, and `imt sync all` runs every stage before exiting 1
+- Fix `imt sync mods`/`tools` always printing "Success" at `-vv`, even when an update or delete failed
+- Fix one `modinfo.json`/`toolinfo.json` whose body is not a JSON object (or whose entries are not objects) aborting the whole sync; it is now treated like invalid JSON and its existing entries are kept
+- Fix a crash on a first run against an empty database (missing `meta` documents)
+- Fix source URLs losing their query string, and a malformed URL crashing the sync instead of being skipped
+- Save recorded sources even when a sync fails partway through, so the next run can still protect those entries
 
 ### v2.7.0 - 2026-10-30
 

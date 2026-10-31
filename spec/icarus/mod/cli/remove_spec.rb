@@ -183,7 +183,10 @@ RSpec.describe Icarus::Mod::CLI::Remove do
 
       it "drops the removed mod from meta/mod_sources" do
         expect { remove_command.mod(mod_id) }.to output(/Successfully removed mod/).to_stdout
-        expect(sources_doc).to have_received(:set).with({ sources: { "other" => "https://b/modinfo.json" } }, merge: false)
+        expect(sources_doc).to have_received(:set).with(
+          { sources: { mod_id => satisfy { |value| value.is_a?(Google::Cloud::Firestore::FieldValue) && value.type == :delete } } },
+          merge: true
+        )
       end
 
       it "writes nothing on --dry-run" do
