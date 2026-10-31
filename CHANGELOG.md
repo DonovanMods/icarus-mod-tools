@@ -4,7 +4,7 @@ All notable changes to this project will be documented in this file.
 
 ## History (reverse chronological order)
 
-### [Unreleased]
+### v3.2.2 - 2026-10-31
 
 - `imt validate modinfo`/`toolinfo` now hides "Invalid URL" and GitHub URL auto-fix warnings unless `-v` is given, and ends with a count of what it hid (`N URL/auto-fix warnings hidden; run with -v to see them`); other warnings and all errors still show
 - Fix `--no-verbose` crashing every subcommand with `FrozenError` (it tried to rewrite Thor's frozen options)
